@@ -353,7 +353,7 @@ We will add Diffusion MoE support and the whole training pipeline including SFT 
 <br>
 
 
-## Citation
+# Citation
 
 ```bibtex
 @misc{ni2025megadlms,
