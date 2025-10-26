@@ -59,7 +59,7 @@ examples/dlm_training/ckpt_conversion_validation.sh
 
 ### **Generate with Your Trained DLM**
 ```
-mega-dlms/examples/dlm_generation/dlm_inference.py
+examples/dlm_generation/dlm_inference.py
 ```
 
 <br>
