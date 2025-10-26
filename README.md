@@ -31,7 +31,7 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 # the remaining Dockerfile content
 ```
 
-> If your external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements
+> If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements
 
 ## Setup Envs
 
