@@ -49,8 +49,7 @@ classifiers = [
 ]
 
 [project.urls]
-Download = "https://github.com/NVIDIA/Megatron-LM/releases"
-Homepage = "https://github.com/NVIDIA/Megatron-LM/megatron/core"
+Download = "https://github.com/JinjieNi/MegaDLMs/releases"
 
 [tool.isort]
 profile = "black"  # black-compatible
