@@ -202,7 +202,7 @@ python tools/preprocess_data.py \
 - `--workers`: Number of parallel workers for processing
 - `--append-eod`: Add end-of-document token
 
-<!-- **→ [Complete Data Preparation Guide](./docs/data-preparation.md)** - Comprehensive guide covering advanced preprocessing, dataset collection, deduplication, and optimization strategies -->
+<br>
 
 # Parallelism Strategies
 
