@@ -348,7 +348,7 @@ Based on [NVIDIA NeMo production configurations](https://github.com/NVIDIA/NeMo/
 
 We will add Diffusion MoE support and the whole training pipeline including SFT and RL. Stay tuned!
 
-Welcome to contribute to this repo to enpower the diffusion language models!
+🤲🏻 Contribute to this repo to enpower the development of diffusion language models!
 
 <br>
 
