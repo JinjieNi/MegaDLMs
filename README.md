@@ -150,6 +150,10 @@ We also strong scaled the standard GPT-3 model (our version has slightly more th
 
 ![Strong scaling](images/strong_scaling.png)
 
+
+<br>
+
+
 # Training
 
 ## Getting Started
