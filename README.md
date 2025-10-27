@@ -11,9 +11,11 @@ MegaDLMs (Preview)
 
 <div align="left">
 
-# ⚡ Quick Start
+# Quick Start
 
-## Installation
+<h3>Installation</h3>
+
+---
 
 We strongly recommend using the [PyTorch NGC Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) for optimal compatibility. 
 
@@ -33,31 +35,36 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 
 > If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements
 
-## Setup Envs
+<h3>Setup Envs</h3>
+
+---
 
 Setup the environment variables as instructed in `envs/.env`.
 
-## Training a Diffusion Language Model from Scratch
+<h3>Training a Diffusion Language Model from Scratch</h3>
+
+---
+
 We provide examples of the whole pipeline for training DLMs from scratch. You can find them under `examples/dlm_training`.
 
-### **Data Preparation**
+**Data Preparation**
 
 See [here](#data-preparation) for details.
 
-### **Pre-train**
+**Pre-train**
 ```
 examples/dlm_training/dlm_pretrain_1.7b.sh
 ```
 
 > Find all training arguments in `custom_args/difflm.py` and `megatron/training/arguments.py`.
 
-### **Checkpoint Conversion**
+**Checkpoint Conversion**
 ```
 examples/dlm_training/ckpt_conversion.sh
 examples/dlm_training/ckpt_conversion_validation.sh
 ```
 
-### **Generate with Your Trained DLM**
+**Generate with Your Trained DLM**
 ```
 examples/dlm_generation/dlm_inference.py
 ```
@@ -66,13 +73,13 @@ examples/dlm_generation/dlm_inference.py
 
 # Latest News
 
-- 📣 We release MegaDLMs, the training backend for Quokka, Super Data Learners, and OpenMoE 2, an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
+- We release MegaDLMs, the training backend for Quokka, Super Data Learners, and OpenMoE 2, an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
 
 <br>
 
 # Project Structure
 
-[Megatron-LM](https://github.com/NVIDIA/Megatron-LM/tree/main) is the backend of this codebase.
+MegaDLMs is built upon [Megatron-LM](https://github.com/NVIDIA/Megatron-LM/tree/main).
 
 ```
 mega-dlms/
