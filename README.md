@@ -73,7 +73,7 @@ examples/dlm_generation/dlm_inference.py
 
 # Latest News
 
-- We release MegaDLMs, the training backend for Quokka, Super Data Learners, and OpenMoE 2, an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
+- We release MegaDLMs, the training backend for [Quokka](https://github.com/JinjieNi/Quokka), [Super Data Learners](https://github.com/JinjieNi/dlms-are-super-data-learners), and [OpenMoE 2](https://github.com/JinjieNi/OpenMoE2), an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
 
 <br>
 

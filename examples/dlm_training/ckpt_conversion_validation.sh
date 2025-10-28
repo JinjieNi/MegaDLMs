@@ -21,7 +21,7 @@ CUDA_VISIBLE_DEVICES=0 CUDA_DEVICE_MAX_CONNECTIONS=1 torchrun $DISTRIBUTED_ARGS 
 	--data-path $data_local_shard_dir \
 	--data-cache-path $data_cache_dir \
 	--tokenizer-type HuggingFaceTokenizer \
-	--tokenizer-model megatron/training/tokenizer/gpt2_tokenizer \
+	--tokenizer-model megatron/training/tokenizer/gptneox_tokenizer \
     --finetune \
     --gpt-block-return-loss-and-logits \
 	--use-checkpoint-args \
