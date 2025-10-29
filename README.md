@@ -11,6 +11,19 @@ MegaDLMs (Preview)
 
 <div align="left">
 
+<p align="center" width="100%">
+<img src="images/vs_other_backend.png"  width="80%" height="100%">
+</p>
+
+<p align="center" width="100%">
+<img src="images/weak_scaling.png"  width="80%" height="100%">
+</p>
+
+<p align="center" width="100%">
+<img src="images/strong_scaling.png"  width="80%" height="100%">
+</p>
+
+
 # Quick Start
 
 <h3>Installation</h3>
@@ -159,6 +172,7 @@ We also strong scaled the standard GPT-3 model (our version has slightly more th
 
 
 <br>
+
 
 
 # Training
@@ -351,13 +365,19 @@ Based on [NVIDIA NeMo production configurations](https://github.com/NVIDIA/NeMo/
 <br>
 
 
-# Roadmaps
+<br>
 
-We will add Diffusion MoE support and the whole training pipeline including SFT and RL. Stay tuned!
+# Todo List
+
+**This is an actively maintained codebase! We will gradually support all of the below features.** 
 
 🤲🏻 Contribute to this repo to enpower the development of diffusion language models!
 
-<br>
+- [x]  Native Dense Pre-training
+- [ ]  Native MoE Pre-training (release after the OpenMoE 2 training is done)
+- [ ]  SFT
+- [ ]  RL
+- [ ]  More features!
 
 
 # Citation
