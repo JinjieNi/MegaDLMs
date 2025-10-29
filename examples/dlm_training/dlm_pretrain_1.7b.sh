@@ -54,7 +54,6 @@ current_script_dir=$(dirname "$(readlink -f "$0")")
 RUN_ID=$(basename "$(dirname "$0")" | md5sum | head -c 16)
 ROOT_DIR=$PROJECT_DIR
 cd $ROOT_DIR
-source "envs/.env"
 
 TRAINING_TOKENS=$((TRAINING_TOKENS_PER_EPOCH * EPOCHS))
 train_data_prefix_count="1.0 $train_data_prefix"

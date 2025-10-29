@@ -53,20 +53,20 @@ See [here](#data-preparation) for details.
 
 **Pre-train**
 ```
-examples/dlm_training/dlm_pretrain_1.7b.sh
+source envs/.env; bash examples/dlm_training/dlm_pretrain_1.7b.sh
 ```
 
 > Find all training arguments in `custom_args/difflm.py` and `megatron/training/arguments.py`.
 
 **Checkpoint Conversion**
 ```
-examples/dlm_training/ckpt_conversion.sh
-examples/dlm_training/ckpt_conversion_validation.sh
+source envs/.env; bash examples/dlm_training/ckpt_conversion.sh
+source envs/.env; bash examples/dlm_training/ckpt_conversion_validation.sh
 ```
 
 **Generate with Your Trained DLM**
 ```
-examples/dlm_generation/dlm_inference.py
+source envs/.env; python examples/dlm_generation/dlm_inference.py
 ```
 
 <br>
