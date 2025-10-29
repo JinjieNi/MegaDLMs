@@ -19,9 +19,9 @@ MegaDLMs (Preview)
 <img src="images/weak_scaling.png"  width="80%" height="100%">
 </p>
 
-<p align="center" width="100%">
+<!-- <p align="center" width="100%">
 <img src="images/strong_scaling.png"  width="80%" height="100%">
-</p>
+</p> -->
 
 
 # Quick Start
