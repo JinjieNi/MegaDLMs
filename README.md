@@ -65,53 +65,6 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 
 Setup the environment variables as instructed in `envs/.env`.
 
-## 3. Training a Diffusion Language Model from Scratch
-
----
-
-We provide examples of the whole pipeline for training DLMs from scratch. You can find them under `examples/dlm_training`.
-
-**Data Preparation**
-
-See [here](#data-preparation) for details.
-
-**Pre-train**
-```
-source envs/.env; bash examples/dlm_training/dlm_pretrain_1.7b.sh
-```
-
-> Find all training arguments in `custom_args/difflm.py` and `megatron/training/arguments.py`.
-
-**Checkpoint Conversion**
-```
-source envs/.env; bash examples/dlm_training/ckpt_conversion.sh
-source envs/.env; bash examples/dlm_training/ckpt_conversion_validation.sh
-```
-
-**Generate with Your Trained DLM**
-```
-source envs/.env; python examples/dlm_generation/dlm_inference.py
-```
-
-## 4. Training from a pre-trained HuggingFace checkpoint
-
-We will provide an example soon. You can also try to set it up with the below changes, it's quite similar.
-
-**Convert the huggingface checkpoint to megatron format**
-
-```
-tools/weights_conversion/hf_to_megatron_te.py
-```
-
-Samely, verify the precision with:
-
-```
-tools/weights_conversion/utils/verify_correctness_dlm.py
-```
-
-In training, you need to additionally specify the `--load`, `--finetune`, and `--use-checkpoint-args` as detailed in `megatron/training/arguments.py`.
-
-
 <br>
 
 
@@ -160,67 +113,8 @@ mega-dlms/
 
 <br>
 
-# Performance Benchmarking
-
-For the latest performance benchmarking results, please refer to [NVIDIA NeMo Framework Performance Summary](https://docs.nvidia.com/nemo-framework/user-guide/latest/performance/performance_summary.html).
-
-Our codebase efficiently trains models from 2B to 462B parameters across thousands of GPUs, achieving up to **47% Model FLOP Utilization (MFU)** on H100 clusters.
-
-![Model table](images/model_table.png)
-
-**Benchmark Configuration:**
-
-- **Vocabulary size**: 131,072 tokens
-- **Sequence length**: 4096 tokens  
-- **Model scaling**: Varied hidden size, attention heads, and layers to achieve target parameter counts
-- **Communication optimizations**: Fine-grained overlapping with DP (`--overlap-grad-reduce`, `--overlap-param-gather`), TP (`--tp-comm-overlap`), and PP (enabled by default)
-
-**Key Results:**
-
-- **6144 H100 GPUs**: Successfully benchmarked 462B parameter model training
-- **Superlinear scaling**: MFU increases from 41% to 47-48% with model size
-- **End-to-end measurement**: Throughputs include all operations (data loading, optimizer steps, communication, logging)
-- **Production ready**: Full training pipeline with checkpointing and fault tolerance
-- *Note: Performance results measured without training to convergence*
-
-## Weak Scaling Results
-
-Our weak scaled results show superlinear scaling (MFU increases from 41% for the smallest model considered to 47-48% for the largest models); this is because larger GEMMs have higher arithmetic intensity and are consequently more efficient to execute.
-
-![Weak scaling](images/weak_scaling.png)
-
-## Strong Scaling Results
-
-We also strong scaled the standard GPT-3 model (our version has slightly more than 175 billion parameters due to larger vocabulary size) from 96 H100 GPUs to 4608 GPUs, using the same batch size of 1152 sequences throughout. Communication becomes more exposed at larger scale, leading to a reduction in MFU from 47% to 42%.
-
-![Strong scaling](images/strong_scaling.png)
-
-
-<br>
-
-
 
 # Training
-
-## Getting Started
-
-### Simple Training Example
-
-**Pre-train**
-```
-examples/dlm_training/dlm_pretrain_1.7b.sh
-```
-
-**Checkpoint Conversion**
-```
-examples/dlm_training/ckpt_conversion.sh
-examples/dlm_training/ckpt_conversion_validation.sh
-```
-
-**Generate with Your Trained DLM**
-```
-mega-dlms/examples/dlm_generation/dlm_inference.py
-```
 
 ## Data Preparation
 
@@ -230,14 +124,14 @@ E.g., if you prepare all your data into a `.jsonl` file and run `tools/preproces
 
 You can also prepare your corpus into N `.jsonl` files and then tokenize them into N files by running `tools/preprocess_data.py` N times. Search for `--data-path` or `--per-split-data-args-path` in the `megatron/training/arguments.py` to learn more about how to use it in training.
 
-### JSONL Data Format
+**JSONL Data Format**
 
 ```json
 {"text": "Your training text here..."}
 {"text": "Another training sample..."}
 ```
 
-### Basic Preprocessing
+**Basic Preprocessing**
 
 ```bash
 python tools/preprocess_data.py \
@@ -249,7 +143,7 @@ python tools/preprocess_data.py \
     --append-eod
 ```
 
-### Key Arguments
+**Key Arguments**
 
 - `--input`: Path to input JSON/JSONL file
 - `--output-prefix`: Prefix for output binary files (.bin and .idx)
@@ -257,6 +151,46 @@ python tools/preprocess_data.py \
 - `--tokenizer-model`: Path to tokenizer model file
 - `--workers`: Number of parallel workers for processing
 - `--append-eod`: Add end-of-document token
+
+## Train from Scratch
+
+We provide examples of the whole pipeline for training DLMs from scratch. You can find them under `examples/dlm_training`.
+
+**Pre-train**
+```
+source envs/.env; bash examples/dlm_training/dlm_pretrain_1.7b.sh
+```
+
+> Find all training arguments in `custom_args/difflm.py` and `megatron/training/arguments.py`.
+
+**Checkpoint Conversion**
+```
+source envs/.env; bash examples/dlm_training/ckpt_conversion.sh
+source envs/.env; bash examples/dlm_training/ckpt_conversion_validation.sh
+```
+
+**Generate with Your Trained DLM**
+```
+source envs/.env; python examples/dlm_generation/dlm_inference.py
+```
+
+## Train from a pre-trained HuggingFace checkpoint
+
+We will provide an example soon. You can also try to set it up with the below changes, it's quite similar.
+
+**Convert the huggingface checkpoint to megatron format**
+
+```
+tools/weights_conversion/hf_to_megatron_te.py
+```
+
+Samely, verify the precision with:
+
+```
+tools/weights_conversion/utils/verify_correctness_dlm.py
+```
+
+In training, you need to additionally specify the `--load`, `--finetune`, and `--use-checkpoint-args` as detailed in `megatron/training/arguments.py`.
 
 <br>
 
@@ -394,6 +328,41 @@ Based on [NVIDIA NeMo production configurations](https://github.com/NVIDIA/NeMo/
 ```
 
 <br>
+
+# Performance Benchmarking
+
+For the latest performance benchmarking results, please refer to [NVIDIA NeMo Framework Performance Summary](https://docs.nvidia.com/nemo-framework/user-guide/latest/performance/performance_summary.html).
+
+Our codebase efficiently trains models from 2B to 462B parameters across thousands of GPUs, achieving up to **47% Model FLOP Utilization (MFU)** on H100 clusters.
+
+![Model table](images/model_table.png)
+
+**Benchmark Configuration:**
+
+- **Vocabulary size**: 131,072 tokens
+- **Sequence length**: 4096 tokens  
+- **Model scaling**: Varied hidden size, attention heads, and layers to achieve target parameter counts
+- **Communication optimizations**: Fine-grained overlapping with DP (`--overlap-grad-reduce`, `--overlap-param-gather`), TP (`--tp-comm-overlap`), and PP (enabled by default)
+
+**Key Results:**
+
+- **6144 H100 GPUs**: Successfully benchmarked 462B parameter model training
+- **Superlinear scaling**: MFU increases from 41% to 47-48% with model size
+- **End-to-end measurement**: Throughputs include all operations (data loading, optimizer steps, communication, logging)
+- **Production ready**: Full training pipeline with checkpointing and fault tolerance
+- *Note: Performance results measured without training to convergence*
+
+## Weak Scaling Results
+
+Our weak scaled results show superlinear scaling (MFU increases from 41% for the smallest model considered to 47-48% for the largest models); this is because larger GEMMs have higher arithmetic intensity and are consequently more efficient to execute.
+
+![Weak scaling](images/weak_scaling.png)
+
+## Strong Scaling Results
+
+We also strong scaled the standard GPT-3 model (our version has slightly more than 175 billion parameters due to larger vocabulary size) from 96 H100 GPUs to 4608 GPUs, using the same batch size of 1152 sequences throughout. Communication becomes more exposed at larger scale, leading to a reduction in MFU from 47% to 42%.
+
+![Strong scaling](images/strong_scaling.png)
 
 
 <br>
