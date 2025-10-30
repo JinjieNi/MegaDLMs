@@ -119,7 +119,7 @@ mega-dlms/
 
 ## Data Preparation
 
-MegaDLMs consume tokenized corpus, so you have to tokenize your training/validation set in advance and store it somewhere. Below we show a quick example of how to tokenize the data. A tokenization script `tools/preprocess_data.py` is provided, which consumes `.jsonl` files as input, shown below. 
+MegaDLMs consumes tokenized corpus, so you have to tokenize your training/validation set in advance and store it somewhere. Below we show a quick example of how to tokenize the data. A tokenization script `tools/preprocess_data.py` is provided, which consumes `.jsonl` files as input, shown below. 
 
 E.g., if you prepare all your data into a `.jsonl` file and run `tools/preprocess_data.py` once to tokenize it with `--output-prefix path/to/processed_data`, you will get two tokenized files: `path/to/processed_data.bin` and `path/to/processed_data.idx`, where the `.bin` file store the tokenized ids and the `.idx` file store the positions of sequences.
 
