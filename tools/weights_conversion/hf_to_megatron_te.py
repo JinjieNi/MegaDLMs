@@ -59,15 +59,6 @@ llama_s2dense = {7: 11008, 13: 13824, 30: 17920, 34: 22016, 65: 22016,
 llama_s2hidden = {7: 4096, 13: 5120, 30: 6656, 34: 8192, 65: 8192, 70: 8192}
 
 
-# qwen_s2layer = {5: 24 , 4: 40, 7: 32, 14: 40, 32:64} #num_hidden_layers
-# qwen_s2heads = {5: 16 , 4: 20, 7: 32, 14: 40, 32:40} #num_attention_heads
-# qwen_s2kvheads = {5: 16 , 4: 20, 7: 32, 14: 40, 32:8} #num_key_value_heads
-# qwen_s2dense = {5: 2816 , 4: 6912 , 7: 11008, 14: 13696, 32: 27392} #intermediate_size
-# qwen_s2hidden = {5: 1024, 4: 2560, 7: 4096, 14: 5120, 32:5120} #hidden_size
-# qwen_s2rope = {5: 1e6 , 4:5e6, 7:1e6, 14:1e6, 32:1e6} #rope_theta
-# qwen_s2vocab = {5: 151936 , 4:151936, 7:151936, 14:152064, 32:152064} #padded_vocab_size
-
-
 qwen_s2layer = {5: 24, 24: 48, 15: 28, 7: 28, 8: 32, 14: 48, 18: 64, 20: 64, 32: 64} #num_hidden_layers
 qwen_s2heads = {5: 14, 24: 14, 15: 12, 7: 28, 8: 28, 14: 40, 18: 40, 20: 40, 32: 40} #num_attention_heads
 qwen_s2kvheads = {5: 2, 24: 2, 15: 2, 7: 4, 8: 4, 14: 8, 18: 8, 20: 8, 32: 8} #num_key_value_heads
@@ -278,22 +269,6 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
     def permute(qkv_w, hidden, n_heads, n_kv_heads):
         return permute_qkv(qkv_w, hidden, n_heads, n_kv_heads)
 
-    # def rearrange_qkv(wq, wk, wv, n_kv_heads, n_heads, n_hidden_per_head):
-    #     wq = torch.split(wq, n_hidden_per_head, dim=0)  # np, [hn, h]
-    #     wk = torch.split(wk, n_hidden_per_head, dim=0)  # ng, [hn, h]   
-    #     wv = torch.split(wv, n_hidden_per_head, dim=0)  # ng, [hn, h]
-
-    #     assert len(wq) == n_heads, f"Expected {n_heads} heads, but got {len(wq)}"
-    #     assert len(wk) == n_kv_heads, f"Expected {n_kv_heads} kv heads, but got {len(wk)}"
-    #     assert len(wv) == n_kv_heads, f"Expected {n_kv_heads} kv heads, but got {len(wv)}"
-        
-    #     n_qs_per_kv = n_heads//n_kv_heads
-    #     w_qkv = []
-    #     for i in range(n_kv_heads):
-    #         w_qkv += [wq[i*n_qs_per_kv + j] for j in range(n_qs_per_kv)]
-    #         w_qkv += [wk[i], wv[i]]
-
-    #     return permute(torch.concat(w_qkv), n_hidden_per_head * n_heads, n_heads, n_kv_heads)
     
     def rearrange_qkv(wq, wk, wv, n_kv_heads, n_heads, n_hidden_per_head):
         np = n_heads
@@ -314,23 +289,6 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
         
         return w_qkv.contiguous().view(-1, h)
         
-
-    # def rearrange_qkv_bias(bq, bk, bv, n_kv_heads, n_heads, n_hidden_per_head):
-    #     bq = torch.split(bq, n_hidden_per_head)
-    #     bk = torch.split(bk, n_hidden_per_head)
-    #     bv = torch.split(bv, n_hidden_per_head)
-
-    #     assert len(bq) == n_heads, f"Expected {n_heads} heads, but got {len(bq)}"
-    #     assert len(bk) == n_kv_heads, f"Expected {n_kv_heads} kv heads, but got {len(bk)}"
-    #     assert len(bv) == n_kv_heads, f"Expected {n_kv_heads} kv heads, but got {len(bv)}"
-        
-    #     n_qs_per_kv = n_heads // n_kv_heads
-    #     b_qkv = []
-    #     for i in range(n_kv_heads):
-    #         b_qkv += [bq[i * n_qs_per_kv + j] for j in range(n_qs_per_kv)]
-    #         b_qkv += [bk[i], bv[i]]
-
-    #     return permute_qkv_bias(torch.cat(b_qkv, dim=0), n_hidden_per_head * n_heads, n_heads, n_kv_heads)
     
     def rearrange_qkv_bias(bq, bk, bv, n_kv_heads, n_heads, n_hidden_per_head):
         np = n_heads
@@ -642,65 +600,10 @@ def main(model_name: str = "falcon", size: int = 7, out: Optional[Path] = None,
     torch.save(final_dict, out/"release"/"mp_rank_00"/"model_optim_rng.pt")
     print("Saved weights in", out)
 
-    # if model_name in {"llama", "llama2"} and llama_source == "hf":
-    #     tokenizer = None
-    #     if model_path is not None:
-    #         try:
-    #             tokenizer = LlamaTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
-    #         except OSError:
-    #             warnings.warn(f"Model path {model_path} does not have a "
-    #                           "tokenizer, using default tokenizer instead")
-    #     if tokenizer is None:
-    #         if model_name == "llama2":
-    #             name = "meta-llama/Llama-2-7b-hf"
-    #         else:
-    #             name = "decapoda-research/llama-7b-hf"
-    #         tokenizer = LlamaTokenizer.from_pretrained(name, cache_dir=cache_dir)
-
-    #     token_path = out/"tokenizer.model"
-    #     vocab_file = tokenizer.vocab_file
-    #     shutil.copy(vocab_file, token_path)
-    #     print("Saved tokenizer.model in", token_path)
-    # elif model_name == "mistral":
-    #     tokenizer = None
-    #     if model_path is not None:
-    #         try:
-    #             tokenizer = LlamaTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
-    #         except OSError:
-    #             warnings.warn(f"Model path {model_path} does not have a "
-    #                           "tokenizer, using default tokenizer instead")
-    #     if tokenizer is None:
-    #         print('reading mistralai/Mistral-7B-v0.1 tokenizer')
-    #         tokenizer = LlamaTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1", cache_dir=cache_dir)
-        
-    #     tokenizer = LlamaTokenizer.from_pretrained("/home/aiops/doulx/model/mistral_pro_hf",cache_dir=cache_dir)
-    #     token_path = out/"tokenizer.model"
-    #     vocab_file = tokenizer.vocab_file
-    #     shutil.copy(vocab_file, token_path)
-    #     print("Saved tokenizer.model in", token_path)
-    # elif model_name == "qwen":
-    #     print('reading qwen tokenizer')
-    #     # tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B-Instruct', cache_dir=cache_dir)
-    #     tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
-    #     token_path = out/"tokenizer.model"
-    # elif model_name == "gemma":
-        # print('reading Gemma tokenizer')
-        # tokenizer = AutoTokenizer.from_pretrained(model_path, cache_dir=cache_dir)
-        # token_path = out/"tokenizer.model"
-
     print("Done")
 
 
 if __name__ == "__main__":
-    
-    # # todo: remove this
-    # import debugpy
-    # _rank = int(os.getenv("RANK", "0"))
-            
-    # if _rank == 0:
-    #     print("Waiting for debugger attach on port 5678...")
-    #     debugpy.listen(("0.0.0.0", 5678))
-    #     debugpy.wait_for_client()
     
     parser = ArgumentParser(description="Convert Huggingface llama or falcon weights to "
                                         "megatron-compatible weights")
