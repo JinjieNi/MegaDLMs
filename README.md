@@ -37,7 +37,7 @@ MegaDLMs (Preview)
 
 # Quick Start
 
-<h3>1. Installation</h3>
+## 1. Installation
 
 ---
 
@@ -59,13 +59,13 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 
 > If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements.
 
-<h3>2. Setup Envs</h3>
+## 2. Setup Envs
 
 ---
 
 Setup the environment variables as instructed in `envs/.env`.
 
-<h3>3. Training a Diffusion Language Model from Scratch</h3>
+## 3. Training a Diffusion Language Model from Scratch
 
 ---
 
@@ -93,9 +93,9 @@ source envs/.env; bash examples/dlm_training/ckpt_conversion_validation.sh
 source envs/.env; python examples/dlm_generation/dlm_inference.py
 ```
 
-<h3>4. Training from a pre-trained HuggingFace checkpoint</h3>
+## 4. Training from a pre-trained HuggingFace checkpoint
 
-We will provide an example soon. You can also try to set it up with the below changes, it's quite similar as training from scratch.
+We will provide an example soon. You can also try to set it up with the below changes, it's quite similar.
 
 **Convert the huggingface checkpoint to megatron format**
 
@@ -109,7 +109,7 @@ Samely, verify the precision with:
 tools/weights_conversion/utils/verify_correctness_dlm.py
 ```
 
-In training, you need to additionally specify the `--load` and `--finetune` as detailed in `megatron/training/arguments.py`.
+In training, you need to additionally specify the `--load`, `--finetune`, and `--use-checkpoint-args` as detailed in `megatron/training/arguments.py`.
 
 
 <br>
