@@ -24,8 +24,11 @@ MegaDLMs (Preview)
 # Highlights
 
 - **Comprehensive Training Pipelines**: Full support for Diffusion Language Models (DLMs) and Autoregressive LMs, from pre-training and SFT to RL, on both dense and MoE architectures.
+
 - **Extreme Speed and Scalability**: MegaDLMs offers up to **47% Model FLOP Utilization (MFU)** and **3× faster training speed** compared with other frameworks (see [here](#performance-benchmarking) for benchmarking). 
+
 - **Cutting-edge Backend**: Leverage flexible parallelism from [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) and GPU-optimized Transformer layers with fused kernels and full-precision (FP8, FP16, BF16) support from [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
+
 - **HuggingFace Integration**: Seamlessly work with HuggingFace checkpoints.
 
 <br>
