@@ -374,7 +374,7 @@ We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pen
 
 # Todo List
 
-**This is an actively maintained codebase! We will gradually support all of the below features.** 
+**This is an actively maintained codebase. We will gradually support all of the below features.** 
 
 🤲🏻 Contribute to this repo to enpower the development of diffusion language models!
 
