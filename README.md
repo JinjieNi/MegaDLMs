@@ -23,6 +23,12 @@ MegaDLMs (Preview)
 <img src="images/strong_scaling.png"  width="80%" height="100%">
 </p> -->
 
+# Latest News
+
+- [2025-11-2] We release MegaDLMs, the training backend for [Quokka](https://github.com/JinjieNi/Quokka), [Super Data Learners](https://github.com/JinjieNi/dlms-are-super-data-learners), and [OpenMoE 2](https://github.com/JinjieNi/OpenMoE2), an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
+
+<br>
+
 
 # Quick Start
 
@@ -84,11 +90,6 @@ source envs/.env; python examples/dlm_generation/dlm_inference.py
 
 <br>
 
-# Latest News
-
-- We release MegaDLMs, the training backend for [Quokka](https://github.com/JinjieNi/Quokka), [Super Data Learners](https://github.com/JinjieNi/dlms-are-super-data-learners), and [OpenMoE 2](https://github.com/JinjieNi/OpenMoE2), an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
-
-<br>
 
 # Project Structure
 
