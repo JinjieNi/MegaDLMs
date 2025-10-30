@@ -39,8 +39,6 @@ MegaDLMs (Preview)
 
 ## 1. Installation
 
----
-
 We strongly recommend using the [PyTorch NGC Container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch) for optimal compatibility. 
 
 The `24.11-py3` version (`nvcr.io/nvidia/pytorch:24.11-py3`) is recommended:
@@ -60,8 +58,6 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 > If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements.
 
 ## 2. Setup Envs
-
----
 
 Setup the environment variables as instructed in `envs/.env`.
 
