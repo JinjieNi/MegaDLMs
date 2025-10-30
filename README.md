@@ -24,7 +24,8 @@ MegaDLMs (Preview)
 # Highlights
 
 - **Comprehensive Training Pipelines**: Full support for Diffusion Language Models (DLMs) and Autoregressive LMs, from pre-training and SFT to RL, on both dense and MoE architectures.
-- **Extreme Speed and Scalability**: Leverage flexible parallelism from [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) and GPU-optimized Transformer layers with fused kernels and full-precision (FP8, FP16, BF16) support from [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
+- **Extreme Speed and Scalability**: MegaDLMs offers up to **47% Model FLOP Utilization (MFU)** and **3× faster training speed** compared with other frameworks (see [here](#performance-benchmarking) for benchmarking). 
+- **Cutting-edge Backend**: Leverage flexible parallelism from [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) and GPU-optimized Transformer layers with fused kernels and full-precision (FP8, FP16, BF16) support from [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
 - **Hugging Face Integration**: Seamlessly work with Hugging Face checkpoints.
 
 <br>
@@ -329,9 +330,9 @@ Based on [NVIDIA NeMo production configurations](https://github.com/NVIDIA/NeMo/
 
 # Performance Benchmarking
 
-For the latest performance benchmarking results, please refer to [NVIDIA NeMo Framework Performance Summary](https://docs.nvidia.com/nemo-framework/user-guide/latest/performance/performance_summary.html).
+Our codebase efficiently trains models from 2B to 462B parameters across thousands of GPUs, achieving up to **47% Model FLOP Utilization (MFU)** and **3× faster training speed** compared with other frameworks, on H100 clusters.
 
-Our codebase efficiently trains models from 2B to 462B parameters across thousands of GPUs, achieving up to **47% Model FLOP Utilization (MFU)** on H100 clusters.
+## Scaling Results
 
 ![Model table](images/model_table.png)
 
@@ -350,17 +351,23 @@ Our codebase efficiently trains models from 2B to 462B parameters across thousan
 - **Production ready**: Full training pipeline with checkpointing and fault tolerance
 - *Note: Performance results measured without training to convergence*
 
-## Weak Scaling Results
+### Weak Scaling Results
 
 Our weak scaled results show superlinear scaling (MFU increases from 41% for the smallest model considered to 47-48% for the largest models); this is because larger GEMMs have higher arithmetic intensity and are consequently more efficient to execute.
 
 ![Weak scaling](images/weak_scaling.png)
 
-## Strong Scaling Results
+### Strong Scaling Results
 
 We also strong scaled the standard GPT-3 model (our version has slightly more than 175 billion parameters due to larger vocabulary size) from 96 H100 GPUs to 4608 GPUs, using the same batch size of 1152 sequences throughout. Communication becomes more exposed at larger scale, leading to a reduction in MFU from 47% to 42%.
 
 ![Strong scaling](images/strong_scaling.png)
+
+## Speed Results
+
+We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pengzhangzhi/Open-dLLM), training the [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/config.json) architecture with both frameworks on exactly the same 32 H100 GPUs. **MegaDLMs offers 3× faster training speed**.
+
+![Benchmark against other frameworks](images/vs_other_backend.png)
 
 
 <br>
