@@ -198,7 +198,7 @@ In training, you need to additionally specify the `--load`, `--finetune`, and `-
 
 ```bash
 # Standard DDP - replicate model on each GPU
-torchrun --nproc_per_node=8 pretrain_gpt.py \
+torchrun --nproc_per_node=8 pretrain_difflm.py \
     --data-parallel-sharding-strategy no_shard
 ```
 
