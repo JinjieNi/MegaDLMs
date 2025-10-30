@@ -33,7 +33,6 @@ MegaDLMs (Preview)
 
 <br>
 
-
 # Latest News
 
 - [2025-11-2] We release MegaDLMs, the training backend for [Quokka](https://github.com/JinjieNi/Quokka), [Super Data Learners](https://github.com/JinjieNi/dlms-are-super-data-learners), and [OpenMoE 2](https://github.com/JinjieNi/OpenMoE2), an ultra fast and scalable framework for any-scale DLM training. We will merge the MoE part once OpenMoE 2 training is done.
@@ -61,7 +60,7 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 # the remaining Dockerfile content
 ```
 
-> If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements.
+> If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements. The specific requirements are detailed in `requirements.txt`.
 
 ## 2. Setup Envs
 
