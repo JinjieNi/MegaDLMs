@@ -19,6 +19,8 @@ MegaDLMs (Preview)
 <img src="images/weak_scaling.png"  width="80%" height="100%">
 </p>
 
+<br>
+
 # Highlights
 
 - **Comprehensive Training Pipelines**: Full support for Diffusion Language Models (DLMs) and Autoregressive LMs, from pre-training and SFT to RL, on both dense and MoE architectures.
