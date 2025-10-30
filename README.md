@@ -351,13 +351,13 @@ Our codebase efficiently trains models from 2B to 462B parameters across thousan
 - **Production ready**: Full training pipeline with checkpointing and fault tolerance
 - *Note: Performance results measured without training to convergence*
 
-**Weak Scaling Results**
+**Weak Scaling Results:**
 
 Our weak scaled results show superlinear scaling (MFU increases from 41% for the smallest model considered to 47-48% for the largest models); this is because larger GEMMs have higher arithmetic intensity and are consequently more efficient to execute.
 
 ![Weak scaling](images/weak_scaling.png)
 
-**Strong Scaling Results**
+**Strong Scaling Results:**
 
 We also strong scaled the standard GPT-3 model (our version has slightly more than 175 billion parameters due to larger vocabulary size) from 96 H100 GPUs to 4608 GPUs, using the same batch size of 1152 sequences throughout. Communication becomes more exposed at larger scale, leading to a reduction in MFU from 47% to 42%.
 
