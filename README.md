@@ -19,9 +19,12 @@ MegaDLMs (Preview)
 <img src="images/weak_scaling.png"  width="80%" height="100%">
 </p>
 
-<!-- <p align="center" width="100%">
-<img src="images/strong_scaling.png"  width="80%" height="100%">
-</p> -->
+# Highlights
+
+- **Comprehensive Training Pipelines**: Full support for Diffusion Language Models (DLMs) and Autoregressive LMs, from pre-training and SFT to RL, on both dense and MoE architectures.
+- **Extreme Speed and Scalability**: Leverage flexible parallelism from [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) and GPU-optimized Transformer layers with fused kernels and full-precision (FP8, FP16, BF16) support from [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
+- **Hugging Face Integration**: Seamlessly work with Hugging Face checkpoints.
+
 
 # Latest News
 
@@ -52,7 +55,7 @@ FROM nvcr.io/nvidia/pytorch:24.11-py3
 # the remaining Dockerfile content
 ```
 
-> If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements
+> If external images are not supported in your cluster, follow the [Complete Installation Guide](https://github.com/NVIDIA/Megatron-LM?tab=readme-ov-file#installation) to install - Docker, pip variants (dev,lts,etc.), source installation, and system requirements.
 
 <h3>Setup Envs</h3>
 
@@ -200,6 +203,12 @@ mega-dlms/examples/dlm_generation/dlm_inference.py
 
 ## Data Preparation
 
+MegaDLMs consume tokenized corpus, so you have to tokenize your training/validation set in advance and store it somewhere. Below we show a quick example of how to tokenize the data. A tokenization script `tools/preprocess_data.py` is provided, which consumes `.jsonl` files as input, shown below. 
+
+E.g., if you prepare all your data into a `.jsonl` file and run `tools/preprocess_data.py` once to tokenize it with `--output-prefix path/to/processed_data`, you will get two tokenized files: `path/to/processed_data.bin` and `path/to/processed_data.idx`, where the `.bin` file store the tokenized ids and the `.idx` file store the positions of sequences.
+
+You can also prepare your corpus into N `.jsonl` files and then tokenize them into N files by running `tools/preprocess_data.py` N times. Search for `--data-path` or `--per-split-data-args-path` in the `megatron/training/arguments.py` to learn more about how to use it in training.
+
 ### JSONL Data Format
 
 ```json
@@ -212,7 +221,7 @@ mega-dlms/examples/dlm_generation/dlm_inference.py
 ```bash
 python tools/preprocess_data.py \
     --input data.jsonl \
-    --output-prefix processed_data \
+    --output-prefix path/to/processed_data \
     --tokenizer-type HuggingFaceTokenizer \
     --tokenizer-model /path/to/tokenizer.model \
     --workers 8 \
@@ -374,11 +383,11 @@ Based on [NVIDIA NeMo production configurations](https://github.com/NVIDIA/NeMo/
 
 🤲🏻 Contribute to this repo to enpower the development of diffusion language models!
 
-- [x]  Native Dense Pre-training
-- [ ]  Native MoE Pre-training (release after the OpenMoE 2 training is done)
+- [x]  Dense Pre-training
+- [ ]  MoE Pre-training (release after the OpenMoE 2 training is done)
 - [ ]  SFT
 - [ ]  RL
-- [ ]  More features!
+- [ ]  Multi-modality
 
 
 # Citation
