@@ -365,7 +365,7 @@ We also strong scaled the standard GPT-3 model (our version has slightly more th
 
 ## Speed Results
 
-We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pengzhangzhi/Open-dLLM), training the [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/config.json) architecture with both frameworks on exactly the same 32 H100 GPUs. **MegaDLMs offers 3× faster training speed**.
+We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pengzhangzhi/Open-dLLM), training the [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/config.json) architecture with both frameworks on exactly the same 32 H100 GPUs. **MegaDLMs offers 3× faster training speed and more stable iterations**.
 
 ![Benchmark against other frameworks](images/vs_other_backend.png)
 
