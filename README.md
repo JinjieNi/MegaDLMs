@@ -3,7 +3,7 @@
 MegaDLMs (Preview)
 ===========================
 
-<h4>GPU-optimized codebase for training diffusion language models at any scale.</h4>
+<h4>GPU-optimized framework for training diffusion language models at any scale.</h4>
 
 [![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat)](https://docs.nvidia.com/Megatron-Core/developer-guide/latest/index.html)
 [![version](https://img.shields.io/badge/release-0.0.1-green)](./CHANGELOG.md)
