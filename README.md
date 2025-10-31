@@ -389,6 +389,14 @@ We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pen
 
 <br>
 
+# Related Links
+
+- Our backend: [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) and [Transformer Engine](https://github.com/NVIDIA/TransformerEngine).
+- MegaDLMs is the training backend for [Quokka](https://github.com/JinjieNi/Quokka), [Super Data Learners](https://github.com/JinjieNi/dlms-are-super-data-learners), and [OpenMoE 2](https://github.com/JinjieNi/OpenMoE2).
+
+
+<br>
+
 
 # Citation
 
