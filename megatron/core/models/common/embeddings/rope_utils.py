@@ -260,6 +260,7 @@ def apply_rotary_pos_emb_with_cos_sin(
 
     return y
 
+
 def apply_2d_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim=2):
     """
     Applies 2D Rotary Position Embedding with Sections to the query and key tensors (adapted from https://qwenlm.github.io/blog/qwen2-vl/).
@@ -267,39 +268,43 @@ def apply_2d_rotary_pos_emb(q, k, cos, sin, mrope_section, unsqueeze_dim=2):
     # confirm the format of mrope_section is correct
     mrope_section = mrope_section.split(',')
     mrope_section = [int(i) for i in mrope_section]
-    assert sum(mrope_section) == q.shape[-1] // 2, "The sum of mrope_section should be half of the head dimension."
-    
+    assert (
+        sum(mrope_section) == q.shape[-1] // 2
+    ), "The sum of mrope_section should be half of the head dimension."
+
     mrope_section = mrope_section * 2
-    
+
     q_cos, k_cos = cos
     q_sin, k_sin = sin
-    
-    q_cos = torch.cat([m[i % 2] for i, m in enumerate(q_cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(
-        unsqueeze_dim
-    )
-    q_sin = torch.cat([m[i % 2] for i, m in enumerate(q_sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(
-        unsqueeze_dim
-    )
-    
-    k_cos = torch.cat([m[i % 2] for i, m in enumerate(k_cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(
-        unsqueeze_dim
-    )
-    k_sin = torch.cat([m[i % 2] for i, m in enumerate(k_sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(
-        unsqueeze_dim
-    )
-    
+
+    q_cos = torch.cat(
+        [m[i % 2] for i, m in enumerate(q_cos.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+    q_sin = torch.cat(
+        [m[i % 2] for i, m in enumerate(q_sin.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+
+    k_cos = torch.cat(
+        [m[i % 2] for i, m in enumerate(k_cos.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+    k_sin = torch.cat(
+        [m[i % 2] for i, m in enumerate(k_sin.split(mrope_section, dim=-1))], dim=-1
+    ).unsqueeze(unsqueeze_dim)
+
     # q: [s, b, np, hn]
     # k: [s, b, ng, hn]
     # cos: [s, b, 1, hn]
     # sin: [s, b, 1, hn]
-    
+
     # cos: 4 chunks [cos1_1, cos2_2, cos1_1, cos2_2] (cos{chunk_id}_{axis_id})
     # sin: 4 chunks [sin1_1, sin2_2, sin1_1, sin2_2] (sin{chunk_id}_{axis_id})
     # q: [q1, q2, q3, q4]
     # rotate_half(q): [-q3, -q4, q1, q2]
-    q_embed = (q * q_cos) + (rotate_half(q) * q_sin) # [cos1_1*q1-sin1_1*q3; cos2_2*q2-sin2_2*q4; cos1_1*q3+sin1_1*q1; cos2_2*q4+sin2_2*q2]
-    k_embed = (k * k_cos) + (rotate_half(k) * k_sin) 
-    
+    q_embed = (q * q_cos) + (
+        rotate_half(q) * q_sin
+    )  # [cos1_1*q1-sin1_1*q3; cos2_2*q2-sin2_2*q4; cos1_1*q3+sin1_1*q1; cos2_2*q4+sin2_2*q2]
+    k_embed = (k * k_cos) + (rotate_half(k) * k_sin)
+
     # so, essentially, it's rotating the digit pairs in (q1, q3) pairs and (q2, q4) pairs, each pair representing an axis.
     # In this way, dim2 is continuously using the dim frequencies after dim1, which is a design, but it's also possible to separate them.
     return q_embed, k_embed

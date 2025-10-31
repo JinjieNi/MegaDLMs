@@ -3,23 +3,22 @@
 """Prompting the pretrained language model to generate knowledge/response"""
 
 import json
-import torch
+
 import requests
+import torch
 from nltk import word_tokenize
-from megatron.training import get_args
-from megatron.training import print_rank_0
-from megatron.training import get_tokenizer
+
 from megatron.core import mpu
+from megatron.inference.text_generation import generate_and_post_process
 from megatron.legacy.model import GPTModel
-from megatron.training import get_model
+from megatron.training import get_args, get_model, get_tokenizer, print_rank_0
 from megatron.training.checkpointing import load_checkpoint
 from megatron.training.initialize import initialize_megatron
-from megatron.inference.text_generation import generate_and_post_process
 
 
 def call_model_api(inputs, tokens_to_generate):
     """Calling the model api to get the output generations"""
-    
+
     args = get_args()
 
     # The following is an example of using the Megatron API
@@ -32,7 +31,7 @@ def call_model_api(inputs, tokens_to_generate):
     input_len = len(inputs)
     outputs = outputs[input_len:]
     outputs = outputs.split("\n")[0].strip()
-    
+
     return outputs
 
 
@@ -48,7 +47,7 @@ def read_prompts(prompt_path, prompt_type, n_example):
                 line = line.strip()
                 line_dict = json.loads(line)
                 key = list(line_dict.keys())[0]
-                
+
                 if key not in prompt_examples_dict:
                     prompt_examples = line_dict[key]
                     prompt = ""
@@ -74,19 +73,18 @@ def read_prompts(prompt_path, prompt_type, n_example):
 
 
 def generate_samples_by_calling_api():
-    """ Generate outputs by calling"""
+    """Generate outputs by calling"""
     args = get_args()
-    assert args.prompt_type in ["knowledge", "response"], \
-                "Please input a correct prompt type!"
+    assert args.prompt_type in ["knowledge", "response"], "Please input a correct prompt type!"
 
     if args.prompt_type == "knowledge":
         # read knowledge generation prompts
         knwl_gen_prompt_dict = read_prompts(
-            args.prompt_file, args.prompt_type, args.num_prompt_examples)
-        
+            args.prompt_file, args.prompt_type, args.num_prompt_examples
+        )
+
     else:
-        resp_gen_prompt = read_prompts(
-            args.prompt_file, args.prompt_type, args.num_prompt_examples)
+        resp_gen_prompt = read_prompts(args.prompt_file, args.prompt_type, args.num_prompt_examples)
 
     # read the test data
     fname = open(args.sample_input_file, "r")
@@ -130,7 +128,7 @@ def generate_samples_by_calling_api():
             inputs += "We know that: " + knowledge + " "
             inputs += "System replies:"
 
-        # get the output generations from the api, 
+        # get the output generations from the api,
         # and write to the output file
         generations = call_model_api(inputs, args.out_seq_length)
         fname_out.write(generations)
@@ -145,40 +143,36 @@ def model_provider(pre_process=True, post_process=True):
 
     print_rank_0('building GPT model ...')
     model = GPTModel(
-        num_tokentypes=0,
-        parallel_output=True,
-        pre_process=pre_process,
-        post_process=post_process
+        num_tokentypes=0, parallel_output=True, pre_process=pre_process, post_process=post_process
     )
     return model
 
 
 def generate_samples_by_prompting_input_from_file(model):
     """Prompt a pretrained language model to generate knowledge/response"""
-    
+
     # get tokenizer
     args = get_args()
     tokenizer = get_tokenizer()
 
     # Read the sample file and open the output file.
-    assert args.sample_input_file is not None, \
-        'sample input file is not provided.'
+    assert args.sample_input_file is not None, 'sample input file is not provided.'
     if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
         fname = open(args.sample_input_file, "r")
         all_raw_text = fname.readlines()
         input_count = len(all_raw_text)
         if args.sample_output_file is None:
             sample_output_file = args.sample_input_file + ".out"
-            print('`sample-output-file` not specified, setting '
-                    'it to {}'.format(sample_output_file))
+            print(
+                '`sample-output-file` not specified, setting ' 'it to {}'.format(sample_output_file)
+            )
         else:
             sample_output_file = args.sample_output_file
 
         fname_out = open(sample_output_file, "w")
 
     # only two prompt types (i.e., knowledge and response) are allowed
-    assert args.prompt_type in ["knowledge", "response"], \
-                "Please input a correct prompt type!"
+    assert args.prompt_type in ["knowledge", "response"], "Please input a correct prompt type!"
 
     # Read the prompt file
     if args.prompt_type == "knowledge":
@@ -204,7 +198,7 @@ def generate_samples_by_prompting_input_from_file(model):
         # prompts are fixed for all test samples
         with open(args.prompt_file, "r") as f:
             prompt_examples = f.readlines()
-            prompt_examples = prompt_examples[:args.num_prompt_examples]
+            prompt_examples = prompt_examples[: args.num_prompt_examples]
 
             prompt = ""
             for instance in prompt_examples:
@@ -217,8 +211,7 @@ def generate_samples_by_prompting_input_from_file(model):
     with torch.no_grad():
         while True:
             raw_text_len = 0
-            if mpu.is_pipeline_first_stage() \
-               and mpu.get_tensor_model_parallel_rank() == 0:
+            if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
                 input_str = all_raw_text[input_pos]
                 input_str = input_str.strip()
                 splits = input_str.split("\t")
@@ -234,7 +227,7 @@ def generate_samples_by_prompting_input_from_file(model):
                     # construct inputs for knowledge generation
                     # then add the constructed inputs into the raw_text
                     raw_text += "( " + last_turn + " ) " + topic + " =>"
-                
+
                 else:
                     # first add the prompt into the raw_text
                     raw_text = prompt
@@ -255,7 +248,7 @@ def generate_samples_by_prompting_input_from_file(model):
 
                 input_pos += 1
                 raw_text_len = len(raw_text)
-            
+
             else:
                 raw_text = "EMPTY TEXT"
 
@@ -263,10 +256,11 @@ def generate_samples_by_prompting_input_from_file(model):
                 print_rank_0("input_pos: %d" % input_pos)
 
             outputs = generate_and_post_process(
-                        model=model, 
-                        prompts=[raw_text], 
-                        tokens_to_generate=args.out_seq_length,
-                        top_k_sampling=1)
+                model=model,
+                prompts=[raw_text],
+                tokens_to_generate=args.out_seq_length,
+                top_k_sampling=1,
+            )
             prompts_plus_generations = outputs[0]
             prompts_plus_generations = prompts_plus_generations[0]
 

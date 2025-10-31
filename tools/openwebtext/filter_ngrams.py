@@ -7,15 +7,17 @@ with more than 10 splits got filtered as well.
 """
 
 import argparse
-from functools import partial
 import json
 import multiprocessing
-import nltk
 import pickle
 import re
 import string
 import sys
 import time
+from functools import partial
+
+import nltk
+
 
 def get_words(text):
     # get all the lowercase words from text
@@ -24,6 +26,7 @@ def get_words(text):
         words.append(match.group(0))
         positions.append(match.start())
     return words, positions
+
 
 # splits the text
 def split_text(text, start_position, remove_char_each_side, seq):
@@ -34,7 +37,7 @@ def split_text(text, start_position, remove_char_each_side, seq):
     while pos > 0 and not text[pos] in punctuations:
         pos -= 1
     if pos > 0:
-        text_first = text[0:pos+1]
+        text_first = text[0 : pos + 1]
 
     # add length of seq and remove_char_each_side
     pos = start_position + len(seq) + remove_char_each_side
@@ -44,12 +47,14 @@ def split_text(text, start_position, remove_char_each_side, seq):
     while pos < len(text) and not text[pos] in punctuations:
         pos += 1
     if pos + 1 < len(text):
-        text_second = text[pos+1:len(text)]
+        text_second = text[pos + 1 : len(text)]
 
     return text_first, text_second
 
-def check_and_clean_text(args, words, ngrams, text, start_position, \
-    text_buf_ngram_free, text_buf, local_ngram):
+
+def check_and_clean_text(
+    args, words, ngrams, text, start_position, text_buf_ngram_free, text_buf, local_ngram
+):
 
     seq = " ".join(words)
     if seq in ngrams:
@@ -62,14 +67,13 @@ def check_and_clean_text(args, words, ngrams, text, start_position, \
                 local_ngram[seq] += 1
             else:
                 local_ngram[seq] = 1
-            #print(" [increased]: {} {}".format(seq, ngrams[seq]), flush=True)
+            # print(" [increased]: {} {}".format(seq, ngrams[seq]), flush=True)
             if (start_position + len(seq) + 1) < len(text):
-                text_buf.append(text[start_position + len(seq) + 1:len(text)])
-            return False            
+                text_buf.append(text[start_position + len(seq) + 1 : len(text)])
+            return False
 
         # split the text
-        text_first, text_second = split_text(text, start_position, \
-            args.remove_char_each_side, seq)
+        text_first, text_second = split_text(text, start_position, args.remove_char_each_side, seq)
 
         # first part of ngrams free
         if len(text_first) > args.filter_text_char_len:
@@ -79,7 +83,7 @@ def check_and_clean_text(args, words, ngrams, text, start_position, \
         if len(text_second) > args.filter_text_char_len:
             text_buf.append(text_second)
 
-        return False # not ngram free
+        return False  # not ngram free
 
     # ngram free
     return True
@@ -102,13 +106,20 @@ def free_ngram(line, args, key, ngrams, ngrams_freq_sorted):
         # get the first one from the buffer
         text = text_buf.pop(0)
         words, positions = get_words(text)
-        
+
         ngram_free = True
         # find each max n-grams and check dictionary
         for i in range(len(words) - args.max_ngram_size + 1):
-            check_ngram_free = check_and_clean_text(args, words[i:\
-                i+args.max_ngram_size], ngrams, text, positions[i], \
-                text_buf_ngram_free, text_buf, local_ngram)
+            check_ngram_free = check_and_clean_text(
+                args,
+                words[i : i + args.max_ngram_size],
+                ngrams,
+                text,
+                positions[i],
+                text_buf_ngram_free,
+                text_buf,
+                local_ngram,
+            )
 
             # the seq is ngram free? if yes, break
             if not check_ngram_free:
@@ -118,9 +129,16 @@ def free_ngram(line, args, key, ngrams, ngrams_freq_sorted):
             # if max ngrams doesn't match, check if any other lower n-grams
             # within max ngram macthes
             for ngram_len, _ in ngrams_freq_sorted:
-                check_ngram_free = check_and_clean_text(args, words[i:\
-                    i+ngram_len], ngrams, text, positions[i], \
-                    text_buf_ngram_free, text_buf, local_ngram)
+                check_ngram_free = check_and_clean_text(
+                    args,
+                    words[i : i + ngram_len],
+                    ngrams,
+                    text,
+                    positions[i],
+                    text_buf_ngram_free,
+                    text_buf,
+                    local_ngram,
+                )
 
                 # same check as above
                 if not check_ngram_free:
@@ -134,7 +152,7 @@ def free_ngram(line, args, key, ngrams, ngrams_freq_sorted):
         # for the last max n-gram, check all the lower ngrams in it
         if ngram_free and len(words) - args.max_ngram_size > 0:
             # get the last words of the lax max ngram
-            last_seq_words = words[(len(words)-args.max_ngram_size):len(words)]
+            last_seq_words = words[(len(words) - args.max_ngram_size) : len(words)]
             last_seq_start_position = len(words) - args.max_ngram_size
 
             # check all n-grams lower than the max
@@ -146,10 +164,16 @@ def free_ngram(line, args, key, ngrams, ngrams_freq_sorted):
 
                 # find each ngram of ngram_len in max n-grams and check
                 for i in range(len(last_seq_words) - ngram_len + 1):
-                    check_ngram_free = check_and_clean_text(args, \
-                        last_seq_words[i:i+ngram_len], ngrams, text,\
-                        positions[last_seq_start_position+i], \
-                        text_buf_ngram_free, text_buf, local_ngram)
+                    check_ngram_free = check_and_clean_text(
+                        args,
+                        last_seq_words[i : i + ngram_len],
+                        ngrams,
+                        text,
+                        positions[last_seq_start_position + i],
+                        text_buf_ngram_free,
+                        text_buf,
+                        local_ngram,
+                    )
 
                     if not check_ngram_free:
                         ngram_free = False
@@ -164,18 +188,23 @@ def free_ngram(line, args, key, ngrams, ngrams_freq_sorted):
 
     # check if the text has only been trimmed
     trimmed = 0
-    if not args.get_ngram_freq_only and len(text_buf_ngram_free) == 1 and \
-        len(text_buf_ngram_free[0]) < len(myjson[key]):
+    if (
+        not args.get_ngram_freq_only
+        and len(text_buf_ngram_free) == 1
+        and len(text_buf_ngram_free[0]) < len(myjson[key])
+    ):
         trimmed = 1
 
     return text_buf_ngram_free, trimmed, myjson, local_ngram
+
 
 # insert word sequence into dictionary
 def insert_dict(words, ngrams, pos):
     seq = " ".join(words)
     if seq not in ngrams:
         ngrams[seq] = 0
-        #ngrams[seq] = pos
+        # ngrams[seq] = pos
+
 
 # insert each ngram from text into the ngrams dictionary
 def compute_ngrams_insert_dict(args, text, ngrams):
@@ -186,8 +215,8 @@ def compute_ngrams_insert_dict(args, text, ngrams):
     if len(words) < args.max_ngram_size:
         insert_dict(words, ngrams, positions[0])
 
-    for i in range(len(words) - args.max_ngram_size+1):
-        insert_dict(words[i:i+args.max_ngram_size], ngrams, positions[i])
+    for i in range(len(words) - args.max_ngram_size + 1):
+        insert_dict(words[i : i + args.max_ngram_size], ngrams, positions[i])
 
 
 # Build ngrams for the lambada dataset
@@ -254,8 +283,13 @@ def process_task(args, task_name, ngrams):
         except Exception as e:
             print('Error:', e)
 
-    print(" After task {} entities in ngrams {}, added {}".format(task_name, \
-            len(ngrams), len(ngrams) - entities_in_ngrams), flush=True)
+    print(
+        " After task {} entities in ngrams {}, added {}".format(
+            task_name, len(ngrams), len(ngrams) - entities_in_ngrams
+        ),
+        flush=True,
+    )
+
 
 def compute_tasks_ngrams(args, ngrams):
     start_time = time.time()
@@ -266,51 +300,64 @@ def compute_tasks_ngrams(args, ngrams):
             process_task_lambda(args, args.lambada_path, ngrams)
         else:
             process_task(args, task_name, ngrams)
-    print(" Taken time to compute ngrams {:.2f}".format(time.time() - \
-        start_time), flush=True)
+    print(" Taken time to compute ngrams {:.2f}".format(time.time() - start_time), flush=True)
+
 
 def compute_ngram_freq_sorted(args, ngrams):
     ngrams_freq = {}
     for ngram_key in ngrams.keys():
         length = len(ngram_key.split())
-        ngrams_freq[length] = ngrams_freq[length] + 1 if length in \
-            ngrams_freq else 1
+        ngrams_freq[length] = ngrams_freq[length] + 1 if length in ngrams_freq else 1
 
     ngrams_freq_sorted = sorted(ngrams_freq.items(), key=lambda item: item[0])
     print(" Ngram frequencies: {}".format(ngrams_freq_sorted), flush=True)
-    print(" Entities in ngrams {} min_ngram_size {} max_ngram_size {}".format(\
-            len(ngrams), ngrams_freq_sorted[0][0], ngrams_freq_sorted[len(\
-            ngrams_freq_sorted) -1 ][0]), flush=True)
+    print(
+        " Entities in ngrams {} min_ngram_size {} max_ngram_size {}".format(
+            len(ngrams),
+            ngrams_freq_sorted[0][0],
+            ngrams_freq_sorted[len(ngrams_freq_sorted) - 1][0],
+        ),
+        flush=True,
+    )
     return ngrams_freq_sorted
 
-def get_ngrams_below_threshold(args, ngrams, ngrams_below_threshold, \
-    dedup_file, dedup_key, ngrams_freq_sorted):
+
+def get_ngrams_below_threshold(
+    args, ngrams, ngrams_below_threshold, dedup_file, dedup_key, ngrams_freq_sorted
+):
 
     start_time = time.time()
     # get the ngrams frequency
     args.get_ngram_freq_only = True
- 
+
     # Open the large file to process in parallel
-    num_workers = args.num_threads 
+    num_workers = args.num_threads
     pool = multiprocessing.Pool(num_workers)
     fin = open(dedup_file, 'r', encoding='utf-8')
-    free_ngram_abt_partial=partial(free_ngram, args=args, key=dedup_key, \
-        ngrams=ngrams, ngrams_freq_sorted=ngrams_freq_sorted)
+    free_ngram_abt_partial = partial(
+        free_ngram, args=args, key=dedup_key, ngrams=ngrams, ngrams_freq_sorted=ngrams_freq_sorted
+    )
     free_ngrams_abt = pool.imap(free_ngram_abt_partial, fin, 500)
- 
+
     counter = 0
     for _, _, _, local_ngram in free_ngrams_abt:
         counter += 1
         if counter % 1000 == 0:
-            print(' [compute_stat]> processed {} documents in {:.2f} seconds ...'.
-                    format(counter, time.time() - start_time), flush=True)
+            print(
+                ' [compute_stat]> processed {} documents in {:.2f} seconds ...'.format(
+                    counter, time.time() - start_time
+                ),
+                flush=True,
+            )
         for local_key in local_ngram:
             if local_key in ngrams:
                 ngrams[local_key] += 1
         local_ngram = {}
 
-    print(' Time taken to compute statistics {:.2f} seconds'.format(time.time() - \
-        start_time), flush=True)
+    print(
+        ' Time taken to compute statistics {:.2f} seconds'.format(time.time() - start_time),
+        flush=True,
+    )
     pool.close()
     pool.join()
 
@@ -322,17 +369,17 @@ def get_ngrams_below_threshold(args, ngrams, ngrams_below_threshold, \
             print(" [threshold] {} {}".format(local_key, local_val), flush=True)
             counter_threshold += 1
             ngrams_below_threshold[local_key] = 1
-            
+
     print(' Ngrams below threshold {}'.format(counter_threshold), flush=True)
     fin.close()
 
-def clean_ngrams_below_threshold(args, ngrams_below_threshold, dedup_file, \
-    dedup_key):
+
+def clean_ngrams_below_threshold(args, ngrams_below_threshold, dedup_file, dedup_key):
 
     start_time = time.time()
     # Now actually filter the dataset
     args.get_ngram_freq_only = False
-    #id_prefix = '-'.join(args.tasks[::2])
+    # id_prefix = '-'.join(args.tasks[::2])
     id_prefix = '-'.join(args.tasks[::1])
 
     # get the range of the size of the ngrams
@@ -343,10 +390,15 @@ def clean_ngrams_below_threshold(args, ngrams_below_threshold, dedup_file, \
     num_workers = args.num_threads
     pool = multiprocessing.Pool(num_workers)
     fin = open(dedup_file, 'r', encoding='utf-8')
-    free_ngram_clean_partial=partial(free_ngram, args=args, key=dedup_key, \
-        ngrams=ngrams_below_threshold, ngrams_freq_sorted=ngrams_freq_sorted)
+    free_ngram_clean_partial = partial(
+        free_ngram,
+        args=args,
+        key=dedup_key,
+        ngrams=ngrams_below_threshold,
+        ngrams_freq_sorted=ngrams_freq_sorted,
+    )
     free_ngrams_clean = pool.imap(free_ngram_clean_partial, fin, 500)
- 
+
     out_f = open(args.output, 'wb')
 
     for text_buf_ngram_free, trimmed, myjson, _ in free_ngrams_clean:
@@ -371,35 +423,47 @@ def clean_ngrams_below_threshold(args, ngrams_below_threshold, dedup_file, \
                     use_prefix = ""
 
                 for i in range(len(text_buf_ngram_free)):
-                    split_id_string = id_prefix + '-{:010d}'.format(int(\
-                        counter)) + '-{:04d}'.format(int(i))
+                    split_id_string = (
+                        id_prefix + '-{:010d}'.format(int(counter)) + '-{:04d}'.format(int(i))
+                    )
                     myjson[dedup_key] = text_buf_ngram_free[i]
                     myjson["split_id"] = use_prefix + split_id_string
                     outjson = json.dumps(myjson, ensure_ascii=False)
-                    #outjson = json.dumps({"text":text_buf_ngram_free[i],
+                    # outjson = json.dumps({"text":text_buf_ngram_free[i],
                     #    id_prefix+"_split_id":split_id_string},
                     #    ensure_ascii=False)
                     out_f.write(outjson.encode('utf-8'))
                     out_f.write('\n'.encode('utf-8'))
 
             if counter % 1000 == 0:
-                print(' [final]> processed {} documents in {:.2f} seconds ...'.
-                    format(counter, time.time() - start_time), flush=True)
+                print(
+                    ' [final]> processed {} documents in {:.2f} seconds ...'.format(
+                        counter, time.time() - start_time
+                    ),
+                    flush=True,
+                )
         except Exception as e:
             print('Error:', e)
 
-    print(' [final]> processed {} documents in {:.2f} seconds ...'.
-        format(counter, time.time() - start_time), flush=True)
-    
-    print(' Total docs {} splitted {} ignored {} splits > theshold {} trimmed'\
-        ' {}'.format(counter, splitted, ignored, split_mt_thld, trimmed_count)\
-        , flush=True)
+    print(
+        ' [final]> processed {} documents in {:.2f} seconds ...'.format(
+            counter, time.time() - start_time
+        ),
+        flush=True,
+    )
+
+    print(
+        ' Total docs {} splitted {} ignored {} splits > theshold {} trimmed'
+        ' {}'.format(counter, splitted, ignored, split_mt_thld, trimmed_count),
+        flush=True,
+    )
 
     pool.close()
     pool.join()
 
     out_f.close()
     fin.close()
+
 
 if __name__ == '__main__':
 
@@ -409,36 +473,52 @@ if __name__ == '__main__':
     print('parsing the arguments ...')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tasks', nargs = '*', required=True, default=None, \
-                        help = 'Tasks to use for deduplication: currently '
-                        ' suuport [lambada, squad, natural_questions,'
-                        ' triviaqa, webqa, race, drop, coqa, and piqa]')
-    parser.add_argument('--lambada-path', type=str, default=None,
-                       help='Only Lambada task needs the path')
-    parser.add_argument('--dedup-dataset', nargs = '*', default=None,
-                       help='Dataset to deduplicate with the key to use'
-                        ' e.g. cc.json text')
-    parser.add_argument('--output', type=str, default=None,
-                       help='Output file name to save dedup dataset')
-    parser.add_argument('--num-threads', type=int, default=40,
-                       help='Number of threads to use')
+    parser.add_argument(
+        '--tasks',
+        nargs='*',
+        required=True,
+        default=None,
+        help='Tasks to use for deduplication: currently '
+        ' suuport [lambada, squad, natural_questions,'
+        ' triviaqa, webqa, race, drop, coqa, and piqa]',
+    )
+    parser.add_argument(
+        '--lambada-path', type=str, default=None, help='Only Lambada task needs the path'
+    )
+    parser.add_argument(
+        '--dedup-dataset',
+        nargs='*',
+        default=None,
+        help='Dataset to deduplicate with the key to use' ' e.g. cc.json text',
+    )
+    parser.add_argument(
+        '--output', type=str, default=None, help='Output file name to save dedup dataset'
+    )
+    parser.add_argument('--num-threads', type=int, default=40, help='Number of threads to use')
     # Default dedup values
-    parser.add_argument('--max-ngram-size', type=int, default=13,
-                       help='Maximum size of ngram to use.')
-    parser.add_argument('--min-ngram-size', type=int, default=8,
-                       help='Minimum size of ngram to use.')
-    parser.add_argument('--filter-text-char-len', type=int, default=200,
-                       help='Remove any text below this length.')
-    parser.add_argument('--key-threshold', type=int, default=10,
-                       help='Number of keys to consider as threshold')
-    parser.add_argument('--save-dictionary', type=str, default=None,
-                       help='Save the dictionary')
-    parser.add_argument('--load-dictionary', type=str, default=None,
-                       help='Load the dictionary')
-    parser.add_argument('--splits-count', type=int, default=10,
-                       help='Remove any documents more than this many splits')
-    parser.add_argument('--remove-char-each-side', type=int, default=200,
-                       help='Maximum size of ngram to use.')
+    parser.add_argument(
+        '--max-ngram-size', type=int, default=13, help='Maximum size of ngram to use.'
+    )
+    parser.add_argument(
+        '--min-ngram-size', type=int, default=8, help='Minimum size of ngram to use.'
+    )
+    parser.add_argument(
+        '--filter-text-char-len', type=int, default=200, help='Remove any text below this length.'
+    )
+    parser.add_argument(
+        '--key-threshold', type=int, default=10, help='Number of keys to consider as threshold'
+    )
+    parser.add_argument('--save-dictionary', type=str, default=None, help='Save the dictionary')
+    parser.add_argument('--load-dictionary', type=str, default=None, help='Load the dictionary')
+    parser.add_argument(
+        '--splits-count',
+        type=int,
+        default=10,
+        help='Remove any documents more than this many splits',
+    )
+    parser.add_argument(
+        '--remove-char-each-side', type=int, default=200, help='Maximum size of ngram to use.'
+    )
 
     args = parser.parse_args()
 
@@ -460,8 +540,9 @@ if __name__ == '__main__':
         # get ngram freq from large file in parallel
         # get ngrams below threshold
         ngrams_below_threshold = {}
-        get_ngrams_below_threshold(args, ngrams, ngrams_below_threshold, \
-            dedup_file, dedup_key, ngrams_freq_sorted)
+        get_ngrams_below_threshold(
+            args, ngrams, ngrams_below_threshold, dedup_file, dedup_key, ngrams_freq_sorted
+        )
 
         # save the dictionary if needed
         if args.save_dictionary is not None:
@@ -473,7 +554,6 @@ if __name__ == '__main__':
 
     # filter the large file
     if args.output is not None:
-        clean_ngrams_below_threshold(args, ngrams_below_threshold, \
-            dedup_file, dedup_key)
+        clean_ngrams_below_threshold(args, ngrams_below_threshold, dedup_file, dedup_key)
 
     print('done :-)')

@@ -2,25 +2,37 @@
 
 """Pretrain GPT"""
 
-import torch
+import os
+import sys
 from functools import partial, reduce
-import sys, os
 
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.join(os.path.dirname(__file__), "../../../"))))
-from megatron.training import get_args, get_retro_args
-from megatron.training import print_rank_0
-from megatron.training import get_timers
-from megatron.training import get_tokenizer
+import torch
+
+sys.path.append(os.path.abspath(os.path.join(os.path.join(os.path.dirname(__file__), "../../../"))))
+from pretrain_gpt import is_dataset_built_on_rank, model_provider
+
 from megatron.core import tensor_parallel
-from megatron.core.enums import ModelType
 from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
 from megatron.core.datasets.utils import get_blend_from_list
-from megatron.training import pretrain
-from megatron.training.utils import get_ltor_masks_and_position_ids
-from megatron.training.utils import average_losses_across_data_parallel_group
-from pretrain_gpt import model_provider, is_dataset_built_on_rank
-from tools.retro.sft.dataset_conv import JsonQADataset, JsonQADatasetConfig, RetroJsonQADataset, RetroJsonQADatasetConfig
+from megatron.core.enums import ModelType
+from megatron.training import (
+    get_args,
+    get_retro_args,
+    get_timers,
+    get_tokenizer,
+    pretrain,
+    print_rank_0,
+)
+from megatron.training.utils import (
+    average_losses_across_data_parallel_group,
+    get_ltor_masks_and_position_ids,
+)
+from tools.retro.sft.dataset_conv import (
+    JsonQADataset,
+    JsonQADatasetConfig,
+    RetroJsonQADataset,
+    RetroJsonQADatasetConfig,
+)
 
 
 def get_tasks_args(parser):
@@ -28,20 +40,31 @@ def get_tasks_args(parser):
     group = parser.add_argument_group(title='tasks')
 
     # parameters for the knowledgeable dialogue generation
-    group.add_argument('--task', type=str, default=None,
-                       help='Task name.')
-    group.add_argument('--epochs', type=int, default=None,
-                       help='Number of finetunning epochs. Zero results in '
-                            'evaluation only.')
-    group.add_argument('--keep-last', action='store_true',
-                       help='Keep the last batch (maybe incomplete) in'
-                            'the data loader')
-    group.add_argument('--pretrained-checkpoint', type=str, default=None,
-                       help='Pretrained checkpoint used for finetunning.')
-    group.add_argument('--data-folder', type=str, default=None,
-                       help='dataset folder')
-    group.add_argument('--answer-loss-only', action='store_true', default=False,
-                       help='take the loss from answer part, ignore the context')
+    group.add_argument('--task', type=str, default=None, help='Task name.')
+    group.add_argument(
+        '--epochs',
+        type=int,
+        default=None,
+        help='Number of finetunning epochs. Zero results in ' 'evaluation only.',
+    )
+    group.add_argument(
+        '--keep-last',
+        action='store_true',
+        help='Keep the last batch (maybe incomplete) in' 'the data loader',
+    )
+    group.add_argument(
+        '--pretrained-checkpoint',
+        type=str,
+        default=None,
+        help='Pretrained checkpoint used for finetunning.',
+    )
+    group.add_argument('--data-folder', type=str, default=None, help='dataset folder')
+    group.add_argument(
+        '--answer-loss-only',
+        action='store_true',
+        default=False,
+        help='take the loss from answer part, ignore the context',
+    )
     group.add_argument('--weight', type=float, default=1)
     group.add_argument('--adaptor', action='store_true', default=False)
     group.add_argument('--project-size', type=int, default=256)
@@ -79,7 +102,9 @@ def get_tasks_args(parser):
     group.add_argument('--bert-retriever-neighbours', action='store_true', default=False)
     group.add_argument('--prefix', action='store_true', default=False)
     group.add_argument('--question-in-encoder', action='store_true', default=False)
-    group.add_argument('--reset_eval', type=bool, default=True)  ## by default reset eval for each eval
+    group.add_argument(
+        '--reset_eval', type=bool, default=True
+    )  ## by default reset eval for each eval
     return parser
 
 
@@ -110,7 +135,9 @@ def get_batch(data_iterator):
     chunk_size = torch.min(data_b['context_len'])
     retro_args = get_retro_args()
     # two chunk retro has at least seq_len / 2 of chunk size
-    retro_args.retro_gpt_chunk_length = max(args.seq_length // 2, args.seq_length - chunk_size.item())
+    retro_args.retro_gpt_chunk_length = max(
+        args.seq_length // 2, args.seq_length - chunk_size.item()
+    )
 
     # Unpack.
     tokens_ = data_b['text'].long()
@@ -120,8 +147,9 @@ def get_batch(data_iterator):
     answer_mask = data_b["answer_mask"].float()[:, 1:].contiguous()
 
     if args.retro_add_retriever:
-        neighbor_tokens = data_b['neighbor_tokens'].view(-1,
-                                                         retro_args.retro_gpt_retrieved_length).long()  # [bs * l * k, r]
+        neighbor_tokens = (
+            data_b['neighbor_tokens'].view(-1, retro_args.retro_gpt_retrieved_length).long()
+        )  # [bs * l * k, r]
 
     # Get the masks and postition ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
@@ -129,7 +157,8 @@ def get_batch(data_iterator):
         tokenizer.eod,
         args.reset_position_ids,
         args.reset_attention_mask,
-        args.eod_mask_loss)
+        args.eod_mask_loss,
+    )
 
     if args.answer_loss_only:
         loss_mask = loss_mask * answer_mask
@@ -140,10 +169,19 @@ def get_batch(data_iterator):
             tokenizer.eod,
             args.reset_position_ids,
             args.reset_attention_mask,
-            args.eod_mask_loss)
+            args.eod_mask_loss,
+        )
         neighbor_attention_mask = None
-        return tokens, labels, loss_mask, attention_mask, position_ids, \
-            neighbor_tokens, neighbor_attention_mask, neighbor_position_ids
+        return (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            neighbor_tokens,
+            neighbor_attention_mask,
+            neighbor_position_ids,
+        )
     else:
         return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -166,22 +204,31 @@ def forward_step(data_iterator, model):
 
     if args.retro_add_retriever:
         timers('batch-generator', log_level=2).start()
-        tokens, labels, loss_mask, attention_mask, position_ids, \
-            neighbor_tokens, neighbor_attention_mask, neighbor_position_ids = get_batch(
-            data_iterator)
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            neighbor_tokens,
+            neighbor_attention_mask,
+            neighbor_position_ids,
+        ) = get_batch(data_iterator)
         timers('batch-generator').stop()
-        output_tensor = model(tokens, position_ids, attention_mask,
-                              retriever_input_ids=neighbor_tokens,
-                              retriever_position_ids=neighbor_position_ids,
-                              retriever_attn_mask=neighbor_attention_mask,
-                              labels=labels)
+        output_tensor = model(
+            tokens,
+            position_ids,
+            attention_mask,
+            retriever_input_ids=neighbor_tokens,
+            retriever_position_ids=neighbor_position_ids,
+            retriever_attn_mask=neighbor_attention_mask,
+            labels=labels,
+        )
     else:
         timers('batch-generator', log_level=2).start()
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-            data_iterator)
+        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(data_iterator)
         timers('batch-generator').stop()
-        output_tensor = model(tokens, position_ids, attention_mask,
-                              labels=labels)
+        output_tensor = model(tokens, position_ids, attention_mask, labels=labels)
 
     return output_tensor, partial(loss_func, loss_mask)
 
@@ -201,22 +248,17 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
             None,
         ]
 
-    blend = [args.data_path[i:i+2] for i in range(0, len(args.data_path), 2)]
+    blend = [args.data_path[i : i + 2] for i in range(0, len(args.data_path), 2)]
 
     if len(blend) == 1:
-        blend_per_split =  [
+        blend_per_split = [
             os.path.join(args.data_folder, blend[0], f"{blend[0]}_QA_train.json"),
             os.path.join(args.data_folder, blend[0], f"{blend[0]}_QA_dev.json"),
             None,
         ]
     else:
         blend_per_split = [
-            list(
-                reduce(
-                    lambda x, y: x + y,
-                    list(zip(*map(fix_and_split_blend_pair, blend)))[0]
-                )
-            ),
+            list(reduce(lambda x, y: x + y, list(zip(*map(fix_and_split_blend_pair, blend)))[0])),
             None,
             None,
         ]
@@ -247,16 +289,12 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
         inference_only=False,
         retrieved_neighbours=False,
         fix_newsqa=True,
-        **extra_kwargs
+        **extra_kwargs,
     )
 
-    print_rank_0('> building train, validation, and test datasets '
-                 'for GPT ...')
+    print_rank_0('> building train, validation, and test datasets ' 'for GPT ...')
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        dataset_cls,
-        train_val_test_num_samples,
-        is_dataset_built_on_rank,
-        config
+        dataset_cls, train_val_test_num_samples, is_dataset_built_on_rank, config
     ).build()
     print_rank_0("> finished creating GPT datasets ...")
 
@@ -268,8 +306,10 @@ if __name__ == "__main__":
     # Temporary for transition to core datasets
     train_valid_test_datasets_provider.is_distributed = True
 
-    pretrain(train_valid_test_datasets_provider, model_provider,
+    pretrain(
+        train_valid_test_datasets_provider,
+        model_provider,
         ModelType.retro_decoder,  # ModelType.encoder_or_decoder,
         forward_step,
-        extra_args_provider=get_tasks_args
+        extra_args_provider=get_tasks_args,
     )

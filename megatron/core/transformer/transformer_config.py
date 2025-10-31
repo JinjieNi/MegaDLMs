@@ -44,7 +44,7 @@ class TransformerConfig(ModelParallelConfig):
     decide the best backend to run (except in the case of local).
     If attention backend is local we use the local pytorch implementation in mcore. 
     Users can specify exact backend by changing this config. """
-    
+
     softmax_scale: Optional[float] = None
     """Softmax scale for attention scaling."""
 
@@ -338,19 +338,18 @@ class TransformerConfig(ModelParallelConfig):
 
     moe_layer_recompute: bool = False
     """Memory optimization: checkpointing moe_layer to save actiavtion memory."""
-    
+
     moe_batch_level_expert_choice: bool = False
     """Whether to use batch-level expert choice."""
-    
+
     moe_router_activation_function: str = "softmax"
     """The activation function to use for the router. Can be either "softmax" or "sigmoid"."""
-    
+
     shared_experts_with_logits: bool = False
     """Whether to use shared experts with logits."""
-    
+
     expert_choice_routing_expert_scaling_factors: str = None
     """A list of expert scaling factors to use for the expert choice routing. The length of the list should be the number of routing experts plus 1 (i.e., the first position means now expert chooses this token)."""
-    
 
     ##################
     # Context Parallel
@@ -397,18 +396,16 @@ class TransformerConfig(ModelParallelConfig):
 
     flash_decode: bool = False
     """ Use the optimized flash decoding kernel during inference. """
-    
+
     ####################
     # custom
     ####################
     gpt_block_return_loss_and_logits: bool = False
     """Return loss and logits from the gpt block"""
-    
+
     on_the_fly_eval_pad_seq: bool = False
     """Whether to pad the sequence for the on-the-fly eval."""
-    
-    
-    
+
     def __post_init__(self):
         """Python dataclass method that is used to modify attributes after initialization.
         See https://docs.python.org/3/library/dataclasses.html#post-init-processing for more
@@ -697,5 +694,3 @@ class MLATransformerConfig(TransformerConfig):
 
     mscale_all_dim: float = 0.707
     """Mscale all dimensions for YaRN RoPE in Multi-Latent Attention."""
-
-    

@@ -3,22 +3,23 @@
 """Sample Generate Mamba"""
 import os
 import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                             os.path.pardir)))
-from megatron.training import get_args
-from megatron.training import print_rank_0
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+import torch
+
 from megatron.core import mpu
-from megatron.training.checkpointing import load_checkpoint
-from megatron.training.initialize import initialize_megatron
 from megatron.core.models.mamba.mamba_model import MambaModel
 from megatron.core.transformer.spec_utils import import_module
-from megatron.training import get_model
-from megatron.training.arguments import core_transformer_config_from_args
+from megatron.inference.text_generation import (
+    beam_search_and_post_process,
+    generate_and_post_process,
+)
 from megatron.inference.text_generation_server import MegatronServer
-from megatron.inference.text_generation import generate_and_post_process
-from megatron.inference.text_generation import beam_search_and_post_process
+from megatron.training import get_args, get_model, print_rank_0
+from megatron.training.arguments import core_transformer_config_from_args
+from megatron.training.checkpointing import load_checkpoint
+from megatron.training.initialize import initialize_megatron
 
-import torch
 
 def count_parameters_in_layer(model, layer_name):
     num_params = 0
@@ -27,6 +28,7 @@ def count_parameters_in_layer(model, layer_name):
             num_params += param.numel()
             print_rank_0(f" - {name}: {param.numel()}")
     return num_params
+
 
 # Taken from pretrain_mamba.py
 def model_provider(pre_process=True, post_process=True) -> MambaModel:
@@ -50,7 +52,7 @@ def model_provider(pre_process=True, post_process=True) -> MambaModel:
     if args.spec is not None:
         mamba_stack_spec = import_module(args.spec)
     else:
-        raise("You must provide a valid Mamba layer spec!")
+        raise ("You must provide a valid Mamba layer spec!")
 
     model = MambaModel(
         config=config,
@@ -67,7 +69,7 @@ def model_provider(pre_process=True, post_process=True) -> MambaModel:
         share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights,
         position_embedding_type=args.position_embedding_type,
         rotary_percent=args.rotary_percent,
-        rotary_base=args.rotary_base
+        rotary_base=args.rotary_base,
     )
 
     for l in range(model.decoder.num_layers_per_pipeline_rank):
@@ -76,25 +78,30 @@ def model_provider(pre_process=True, post_process=True) -> MambaModel:
 
     return model
 
+
 def add_text_generate_args(parser):
     group = parser.add_argument_group(title='text generation')
-    group.add_argument("--port", type=int, default=5000,
-                       help='port for text generation server to run on')
+    group.add_argument(
+        "--port", type=int, default=5000, help='port for text generation server to run on'
+    )
     return parser
 
 
 if __name__ == "__main__":
-    initialize_megatron(extra_args_provider=add_text_generate_args,
-                        args_defaults={'tokenizer_type': 'GPT2BPETokenizer',
-                                       'no_load_rng': True,
-                                       'no_load_optim': True})
+    initialize_megatron(
+        extra_args_provider=add_text_generate_args,
+        args_defaults={
+            'tokenizer_type': 'GPT2BPETokenizer',
+            'no_load_rng': True,
+            'no_load_optim': True,
+        },
+    )
 
     args = get_args()
     if args.num_layers_per_virtual_pipeline_stage is not None:
         print("Interleaved pipeline schedule is not yet supported for text generation.")
         exit()
-    print_rank_0("WARNING: Forcing exit_on_missing_checkpoint to True for text "
-                 "generation.")
+    print_rank_0("WARNING: Forcing exit_on_missing_checkpoint to True for text " "generation.")
     args.exit_on_missing_checkpoint = True
     # Set up model and load checkpoint
     model = get_model(model_provider, wrap_with_ddp=False)
@@ -106,7 +113,7 @@ if __name__ == "__main__":
     model = model[0]
     if mpu.is_pipeline_first_stage() and mpu.get_tensor_model_parallel_rank() == 0:
         server = MegatronServer(model)
-        server.run("0.0.0.0",port=args.port)
+        server.run("0.0.0.0", port=args.port)
 
     while True:
         choice = torch.tensor(1, dtype=torch.long, device='cuda')

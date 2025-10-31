@@ -1,23 +1,20 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
-import re
+import glob
 import json
 import os
-from typing import Any, Iterable, Dict, Optional
-
-from numpy import ndarray
-from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
-from megatron.core.datasets.utils import Split
-import torch
-import numpy
-import glob
+import re
 from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, Optional
+
+import numpy
+import torch
+from numpy import ndarray
 
 from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from megatron.core.datasets.megatron_dataset import LowLevelDataset, MegatronDataset
 from megatron.core.datasets.utils import Split
-from dataclasses import dataclass
-
 
 _DATASET_NAME_PATTERNS = {
     Split.train: r"(?P<name>[^\0]+)\/(?P=name)\_QA\_train.json",
@@ -27,8 +24,8 @@ _DATASET_NAME_PATTERNS = {
 
 @dataclass
 class JsonQADatasetConfig(BlendedMegatronDatasetConfig):
-    """Configuration object for the QA finetuning pipeline
-    """
+    """Configuration object for the QA finetuning pipeline"""
+
     ft_neighbours: int = 1
 
     bert_retriever_neighbours: bool = False
@@ -48,8 +45,8 @@ class JsonQADatasetConfig(BlendedMegatronDatasetConfig):
 
 @dataclass
 class RetroJsonQADatasetConfig(JsonQADatasetConfig):
-    """Configuration object for the Retro QA finetuning pipeline
-    """
+    """Configuration object for the Retro QA finetuning pipeline"""
+
     retro_num_neighbors: int = None
 
     retro_gpt_retrieved_length: int = None
@@ -62,7 +59,15 @@ class RetroJsonQADatasetConfig(JsonQADatasetConfig):
 
 class JsonQADataset(MegatronDataset):
 
-    def __init__(self, dataset: Any, dataset_path: str, indices: ndarray, num_samples: Optional[int], index_split: Split, config: BlendedMegatronDatasetConfig) -> None:
+    def __init__(
+        self,
+        dataset: Any,
+        dataset_path: str,
+        indices: ndarray,
+        num_samples: Optional[int],
+        index_split: Split,
+        config: BlendedMegatronDatasetConfig,
+    ) -> None:
         super().__init__(dataset, dataset_path, indices, num_samples, index_split, config)
         matches = re.findall(_DATASET_NAME_PATTERNS[index_split], dataset_path)
         assert len(matches) == 1
@@ -97,18 +102,19 @@ class JsonQADataset(MegatronDataset):
             self.config.ft_neighbours,
             len(output_tokens),
             self.config.tokenizer,
-            self.config.sequence_length
+            self.config.sequence_length,
         )
 
         # padding
         tokens, answer_mask = pad_and_convert_to_numpy(
-            input_tokens, output_tokens, self.config.tokenizer.pad, self.config.sequence_length, self.config.tokenizer.eos
+            input_tokens,
+            output_tokens,
+            self.config.tokenizer.pad,
+            self.config.sequence_length,
+            self.config.tokenizer.eos,
         )
 
-        train_sample = {
-            'text': tokens,
-            'answer_mask': answer_mask,
-        }
+        train_sample = {'text': tokens, 'answer_mask': answer_mask}
 
         return train_sample
 
@@ -132,7 +138,7 @@ class RetroJsonQADataset(JsonQADataset):
             self.config.ft_neighbours,
             len(output_tokens),
             self.config.tokenizer,
-            self.config.sequence_length
+            self.config.sequence_length,
         )
 
         # padding
@@ -141,7 +147,7 @@ class RetroJsonQADataset(JsonQADataset):
             output_tokens,
             self.config.tokenizer.pad,
             self.config.sequence_length,
-            self.config.tokenizer.eos
+            self.config.tokenizer.eos,
         )
 
         # get retro neighbors
@@ -151,22 +157,24 @@ class RetroJsonQADataset(JsonQADataset):
         # disable retro encoder
         neighbor_tokens = numpy.zeros(
             [n_chunks_per_sample, num_neighbors, self.config.retro_gpt_retrieved_length],
-            dtype=numpy.int64
+            dtype=numpy.int64,
         )
 
         train_sample = {
             'text': tokens,
             'answer_mask': answer_mask,
             'neighbor_tokens': neighbor_tokens,
-            'context_len': len(input_tokens)
+            'context_len': len(input_tokens),
         }
 
         return train_sample
 
 
 def format_multichoice(multichoice_options):
-    options_text = ["({}) {}".format(chr(ord('A') + i), option) for i, option in
-                    zip(range(len(multichoice_options)), multichoice_options)]
+    options_text = [
+        "({}) {}".format(chr(ord('A') + i), option)
+        for i, option in zip(range(len(multichoice_options)), multichoice_options)
+    ]
     return "Choose one based on the following options: {}".format(" ".join(options_text))
 
 
@@ -202,12 +210,18 @@ def preprocess(dataset_path: str, config: JsonQADatasetConfig):
         else:
             if config.retrieved_neighbours:
                 contexts = instance["ctxs"]
-                neighbours = ["title: " + ctx["title"] + ", source: " + ctx["text"] for ctx in contexts]
+                neighbours = [
+                    "title: " + ctx["title"] + ", source: " + ctx["text"] for ctx in contexts
+                ]
             else:
                 if "sub-paragraphs" in instance:
                     if type(instance["sub-paragraphs"]) == list:  # doc2dial:
                         neighbours = [
-                            "title: " + instance["sub-paragraphs"][0] + ", source: " + instance["sub-paragraphs"][1]]
+                            "title: "
+                            + instance["sub-paragraphs"][0]
+                            + ", source: "
+                            + instance["sub-paragraphs"][1]
+                        ]
                     else:
                         neighbours = ["title: , source: " + instance["sub-paragraphs"]]
                 elif config.fix_newsqa and "sub_paragraph" in instance:
@@ -260,21 +274,39 @@ def count_stat(dataset, tokenizer, k):
 
     print("len of nb", len(nb_lens))
     print("max of len nb", max(nb_lens))
-    print("num of cut ", sum([l > 128 for l in nb_lens]), sum([l > 128 for l in nb_lens]) // len(nb_lens))
+    print(
+        "num of cut ",
+        sum([l > 128 for l in nb_lens]),
+        sum([l > 128 for l in nb_lens]) // len(nb_lens),
+    )
     print("last max", sorted(nb_lens)[-10:])
 
 
-def reformat_prompt_retro(query, neighbours, dataset_name, ft_neighbours, \
-                          max_output_len, tokenizer, max_seq_length):
-    system = ("System: This is a chat between a user and an artificial intelligence assistant. The assistant gives "
-              "helpful, detailed, and polite answers to the user's questions.\n\n")
+def reformat_prompt_retro(
+    query, neighbours, dataset_name, ft_neighbours, max_output_len, tokenizer, max_seq_length
+):
+    system = (
+        "System: This is a chat between a user and an artificial intelligence assistant. The assistant gives "
+        "helpful, detailed, and polite answers to the user's questions.\n\n"
+    )
 
     if dataset_name in ["oasst", "quiet_cockatoo", "open_inst", "quiet-cockatoo_commercial"]:
         input_tokens = tokenizer.tokenize(system + query)
         return input_tokens
 
-    short_span_with_context = ["drop", "NarrativeQA", "QASC", "Quoref", "ROPES", "squad1.1", "squad2.0", "newsqa", "nq",
-                               "tqa", "quac"]
+    short_span_with_context = [
+        "drop",
+        "NarrativeQA",
+        "QASC",
+        "Quoref",
+        "ROPES",
+        "squad1.1",
+        "squad2.0",
+        "newsqa",
+        "nq",
+        "tqa",
+        "quac",
+    ]
     yes_no_without_context = ["BoolQ"]
     multichoices = [""]
     formatted_dataset_name = ["doc2dial", "quac", "qrecc", "sharc"]
@@ -301,7 +333,9 @@ def reformat_prompt_retro(query, neighbours, dataset_name, ft_neighbours, \
         context_tokens = tokenizer.tokenize(context)
         dialogue_tokens = tokenizer.tokenize(dialogue_turn)
         system_tokens = tokenizer.tokenize(system)
-        context_tokens = context_tokens[:max_seq_length - max_output_len - len(dialogue_tokens) - len(system_tokens)]
+        context_tokens = context_tokens[
+            : max_seq_length - max_output_len - len(dialogue_tokens) - len(system_tokens)
+        ]
         context = tokenizer.detokenize(context_tokens)
 
         all_input = system + context + dialogue_turn
@@ -322,24 +356,47 @@ def flan_format(system, context, dialogue_turn, template_id=0):
         "{}User: {}Answer this question: {}",
         "{}User: Read this article and answer this question {}{}",
         "{}User: {}Based on the above article, answer a question. {}",
-        "{}User: Context: {}Question: {}"
+        "{}User: Context: {}Question: {}",
     ]
     template = templates[template_id - 1].format(system, context, dialogue_turn)
     return template
 
 
-def reformat_prompt(query, neighbours, dataset_name, ft_neighbours, \
-                    max_output_len, tokenizer, max_seq_length, template_id=0):
-    system = ("System: This is a chat between a user and an artificial intelligence assistant. The assistant gives "
-              "helpful, detailed, and polite answers to the user's questions based on the context. The assistant "
-              "should also indicate when the answer cannot be found in the context.\n\n")
+def reformat_prompt(
+    query,
+    neighbours,
+    dataset_name,
+    ft_neighbours,
+    max_output_len,
+    tokenizer,
+    max_seq_length,
+    template_id=0,
+):
+    system = (
+        "System: This is a chat between a user and an artificial intelligence assistant. The assistant gives "
+        "helpful, detailed, and polite answers to the user's questions based on the context. The assistant "
+        "should also indicate when the answer cannot be found in the context.\n\n"
+    )
 
     if dataset_name in ["oasst", "quiet_cockatoo", "open_inst", "quiet-cockatoo_commercial"]:
         input_tokens = tokenizer.tokenize(system + query)
         return input_tokens
 
-    short_span_with_context = ["drop", "NarrativeQA", "QASC", "Quoref", "ROPES", "squad1.1", "squad2.0", "newsqa", "nq",
-                               "BioASQ", "DuoRC_ParaphraseRC", "TextbookQA", "tqa"]
+    short_span_with_context = [
+        "drop",
+        "NarrativeQA",
+        "QASC",
+        "Quoref",
+        "ROPES",
+        "squad1.1",
+        "squad2.0",
+        "newsqa",
+        "nq",
+        "BioASQ",
+        "DuoRC_ParaphraseRC",
+        "TextbookQA",
+        "tqa",
+    ]
     yes_no_without_context = ["boolq", "multirc"]
     multichoices = ["race"]
     # multi-turn qa datasets
@@ -356,7 +413,11 @@ def reformat_prompt(query, neighbours, dataset_name, ft_neighbours, \
         elif dataset_name in yes_no_without_context:
             user = "Answer the following question with True or False. {}".format(query)
         elif dataset_name in multichoices:
-            user = "Answer the following question by selecting one of the provided options. {}".format(query)
+            user = (
+                "Answer the following question by selecting one of the provided options. {}".format(
+                    query
+                )
+            )
         else:
             if template_id == 0:
                 user = "Please give a full and complete answer for the question. {}".format(query)
@@ -381,7 +442,9 @@ def reformat_prompt(query, neighbours, dataset_name, ft_neighbours, \
         context_tokens = tokenizer.tokenize(context)
         dialogue_tokens = tokenizer.tokenize(dialogue_turn)
         system_tokens = tokenizer.tokenize(system)
-        context_tokens = context_tokens[:max_seq_length - max_output_len - len(dialogue_tokens) - len(system_tokens)]
+        context_tokens = context_tokens[
+            : max_seq_length - max_output_len - len(dialogue_tokens) - len(system_tokens)
+        ]
         context = tokenizer.detokenize(context_tokens)
 
         if template_id == 0:
@@ -396,8 +459,9 @@ def reformat_prompt(query, neighbours, dataset_name, ft_neighbours, \
     return input_tokens
 
 
-def reformat_prompt_short(query, neighbours, dataset_name, ft_neighbours, \
-                          max_output_len, tokenizer, max_seq_length):
+def reformat_prompt_short(
+    query, neighbours, dataset_name, ft_neighbours, max_output_len, tokenizer, max_seq_length
+):
     if not query.endswith("?"):
         query = query + "?"
     query = "Question: {} Answer: The answer is".format(query)
@@ -406,7 +470,7 @@ def reformat_prompt_short(query, neighbours, dataset_name, ft_neighbours, \
         context = "\n\n".join(neighbours[0:ft_neighbours]) + "\n\n"
         context_tokens = tokenizer.tokenize(context)
         dialogue_tokens = tokenizer.tokenize(query)
-        context_tokens = context_tokens[:max_seq_length - max_output_len - len(dialogue_tokens)]
+        context_tokens = context_tokens[: max_seq_length - max_output_len - len(dialogue_tokens)]
         context = tokenizer.detokenize(context_tokens)
         all_input = context + query
         input_tokens = tokenizer.tokenize(all_input)
@@ -417,15 +481,13 @@ def reformat_prompt_short(query, neighbours, dataset_name, ft_neighbours, \
     return input_tokens
 
 
-def pad_and_convert_to_numpy(input_ids, output_ids,
-                             pad_id, max_seq_length,
-                             eos_id):
+def pad_and_convert_to_numpy(input_ids, output_ids, pad_id, max_seq_length, eos_id):
     """Pad sequences and convert them to numpy."""
     if len(input_ids) > max_seq_length:
-        input_ids = input_ids[:max_seq_length - 1]
+        input_ids = input_ids[: max_seq_length - 1]
 
     if len(input_ids + output_ids) > max_seq_length:
-        output_ids = output_ids[:max_seq_length - len(input_ids)]
+        output_ids = output_ids[: max_seq_length - len(input_ids)]
 
     tokens = input_ids + output_ids
     answer_mask = [0] * len(input_ids) + [1] * len(output_ids)

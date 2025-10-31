@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import numpy
-import torch
-
 import pandas as pd
+import torch
 
 from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
 from megatron.core.datasets.indexed_dataset import IndexedDataset
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _PAD_TOKEN_ID = -1
 
+
 def print_rank_0(message):
     """If distributed is initialized, print only on rank 0."""
     if torch.distributed.is_initialized():
@@ -30,6 +30,7 @@ def print_rank_0(message):
             print(message, flush=True)
     else:
         print(message, flush=True)
+
 
 @dataclass
 class GPTDatasetConfig(BlendedMegatronDatasetConfig):
@@ -121,7 +122,7 @@ class GPTDataset(MegatronDataset):
         (self.document_index, self.sample_index, self.shuffle_index) = (
             self._build_document_sample_shuffle_indices()
         )
-        
+
         # num_tokens_per_epoch = self._get_num_tokens_per_epoch()
         # num_epochs = self._get_num_epochs(num_tokens_per_epoch)
         # print_rank_0(f"> total number of epochs: {num_epochs}")
@@ -852,10 +853,10 @@ class OrderedGPTDatasetConfig(BlendedMegatronDatasetConfig):
 
     s3_cache_path: str = None
     """Path for caching indices for s3 dataloading."""
-    
+
     repetition_type: str = "epoch"
     """Option to repeat the batch for the scaling law."""
-    
+
     # difflm_batch_repetition: int = None
     # """Option to repeat the batch for the scaling law."""
 
@@ -920,7 +921,7 @@ class OrderedGPTDataset(MegatronDataset):
         (self.document_index, self.sample_index, self.shuffle_index) = (
             self._build_document_sample_ordered_indices()
         )
-        
+
         num_tokens_per_epoch = self._get_num_tokens_per_epoch()
         num_epochs = self._get_num_epochs(num_tokens_per_epoch)
         print_rank_0(f"> total number of epochs: {num_epochs}")
@@ -1394,6 +1395,7 @@ def _build_ordered_index(
 
     return numpy.concatenate((shuffle_idx_first, shuffle_idx_last))
 
+
 def _build_document_index_epoch_ordered(
     config: OrderedGPTDatasetConfig,
     documents: numpy.ndarray,
@@ -1415,9 +1417,9 @@ def _build_document_index_epoch_ordered(
     Returns:
         numpy.ndarray: The document index
     """
-    
+
     assert config.repetition_type in ["global", "epoch", "batch"]
-    
+
     if not separate_final_epoch or num_epochs == 1:
         document_index = numpy.mgrid[0:num_epochs, 0 : len(documents)][1]
         if config.repetition_type == "batch":
@@ -1427,7 +1429,7 @@ def _build_document_index_epoch_ordered(
             document_index[:] = shuffled_docs
         else:
             document_index[:] = documents
-        
+
         if config.repetition_type == "epoch":
             # shuffle each epoch
             for i in range(num_epochs):
@@ -1435,15 +1437,19 @@ def _build_document_index_epoch_ordered(
 
         if config.repetition_type == "batch":
             document_index = document_index.transpose()
-            
+
         document_index = document_index.reshape(-1)
         document_index = document_index.astype(numpy.int32)
-        
+
         if config.repetition_type == "global":
             numpy_random_state.shuffle(document_index)
-        
+
         return document_index
 
-    doc_idx_first = _build_document_index_epoch_ordered(config, documents, num_epochs - 1, numpy_random_state, False)
-    doc_idx_last = _build_document_index_epoch_ordered(config, documents, 1, numpy_random_state, False)
+    doc_idx_first = _build_document_index_epoch_ordered(
+        config, documents, num_epochs - 1, numpy_random_state, False
+    )
+    doc_idx_last = _build_document_index_epoch_ordered(
+        config, documents, 1, numpy_random_state, False
+    )
     return numpy.concatenate((doc_idx_first, doc_idx_last))

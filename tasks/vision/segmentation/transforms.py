@@ -3,22 +3,25 @@
 # This source code is licensed under the Apache license found in the
 # LICENSE file in the root directory of this source tree.
 
-import random
-import os
 import math
+import os
+import random
+
 import mmcv
-import torch
 import numpy as np
+import torch
 import torchvision.transforms as T
-from torchvision import datasets
-from torch.utils.data import Dataset
-from megatron.training import print_rank_0
-from megatron.training import get_args
-from PIL import Image, ImageOps, ImageEnhance
 import torchvision.transforms as torch_tr
+from PIL import Image, ImageEnhance, ImageOps
+from torch.utils.data import Dataset
+from torchvision import datasets
+
+from megatron.training import get_args, print_rank_0
+
 
 def _is_pil_image(img):
     return isinstance(img, Image.Image)
+
 
 class PhotoMetricDistortion(object):
     """Apply photometric distortion to image sequentially, every transformation
@@ -39,11 +42,13 @@ class PhotoMetricDistortion(object):
         hue_delta (int): delta of hue.
     """
 
-    def __init__(self,
-                 brightness_delta=32,
-                 contrast_range=(0.5, 1.5),
-                 saturation_range=(0.5, 1.5),
-                 hue_delta=18):
+    def __init__(
+        self,
+        brightness_delta=32,
+        contrast_range=(0.5, 1.5),
+        saturation_range=(0.5, 1.5),
+        hue_delta=18,
+    ):
         self.brightness_delta = brightness_delta
         self.contrast_lower, self.contrast_upper = contrast_range
         self.saturation_lower, self.saturation_upper = saturation_range
@@ -59,17 +64,14 @@ class PhotoMetricDistortion(object):
         """Brightness distortion."""
         if random.randint(0, 1):
             return self.convert(
-                img,
-                beta=random.uniform(-self.brightness_delta,
-                                    self.brightness_delta))
+                img, beta=random.uniform(-self.brightness_delta, self.brightness_delta)
+            )
         return img
 
     def contrast(self, img):
         """Contrast distortion."""
         if random.randint(0, 1):
-            return self.convert(
-                img,
-                alpha=random.uniform(self.contrast_lower, self.contrast_upper))
+            return self.convert(img, alpha=random.uniform(self.contrast_lower, self.contrast_upper))
         return img
 
     def saturation(self, img):
@@ -77,9 +79,8 @@ class PhotoMetricDistortion(object):
         if random.randint(0, 1):
             img = mmcv.bgr2hsv(img)
             img[:, :, 1] = self.convert(
-                img[:, :, 1],
-                alpha=random.uniform(self.saturation_lower,
-                                     self.saturation_upper))
+                img[:, :, 1], alpha=random.uniform(self.saturation_lower, self.saturation_upper)
+            )
             img = mmcv.hsv2bgr(img)
         return img
 
@@ -87,9 +88,9 @@ class PhotoMetricDistortion(object):
         """Hue distortion."""
         if random.randint(0, 1):
             img = mmcv.bgr2hsv(img)
-            img[:, :,
-                0] = (img[:, :, 0].astype(int) +
-                      random.randint(-self.hue_delta, self.hue_delta)) % 180
+            img[:, :, 0] = (
+                img[:, :, 0].astype(int) + random.randint(-self.hue_delta, self.hue_delta)
+            ) % 180
             img = mmcv.hsv2bgr(img)
         return img
 
@@ -147,6 +148,7 @@ class RandomCrop(object):
     else:
         # slide image within crop
     """
+
     def __init__(self, crop_size):
         args = get_args()
         self.size = crop_size
@@ -157,7 +159,7 @@ class RandomCrop(object):
     def get_crop_bbox(self, img):
         """Randomly get a crop bounding box."""
         img_w, img_h = img.size
-        target_h, target_w = self.size  #[H W]
+        target_h, target_w = self.size  # [H W]
         margin_h = max(img_h - target_h, 0)
         margin_w = max(img_w - target_w, 0)
         offset_h = random.randint(0, margin_h)
@@ -184,13 +186,14 @@ class RandomCrop(object):
         else:
             y1 = random.randint(0, h - target_h)
 
-        return [img.crop((x1, y1, x1 + target_w, y1 + target_h)),
-                mask.crop((x1, y1, x1 + target_w, y1 + target_h))]
-
+        return [
+            img.crop((x1, y1, x1 + target_w, y1 + target_h)),
+            mask.crop((x1, y1, x1 + target_w, y1 + target_h)),
+        ]
 
     def __call__(self, img, mask):
         w, h = img.size
-        target_h, target_w = self.size   # ASSUME H, W
+        target_h, target_w = self.size  # ASSUME H, W
 
         if w == target_w and h == target_h:
             return img, mask
@@ -211,14 +214,13 @@ class RandomCrop(object):
             w, h = img.size
 
         crop_bbox = self.get_crop_bbox(img)
-        if self.cat_max_ratio < 1.:
+        if self.cat_max_ratio < 1.0:
             # Repeat 10 times
             for _ in range(10):
                 seg_temp = self.crop(mask, crop_bbox)
                 labels, cnt = np.unique(seg_temp, return_counts=True)
                 cnt = cnt[labels != self.ignore_index]
-                if len(cnt) > 1 and np.max(cnt) / np.sum(
-                        cnt) < self.cat_max_ratio:
+                if len(cnt) > 1 and np.max(cnt) / np.sum(cnt) < self.cat_max_ratio:
                     break
                 crop_bbox = self.get_crop_bbox(img)
 
@@ -227,16 +229,13 @@ class RandomCrop(object):
 
         # crop semantic seg
         mask = self.crop(mask, crop_bbox)
-        assert(img.size[0] == self.size[1] and img.size[1] == self.size[0])
-          
+        assert img.size[0] == self.size[1] and img.size[1] == self.size[0]
+
         return img, mask
 
 
 class RandomSizeAndCrop(object):
-    def __init__(self,
-                 crop_size,
-                 scale_min=0.5,
-                 scale_max=2.0):
+    def __init__(self, crop_size, scale_min=0.5, scale_max=2.0):
         self.crop = RandomCrop(crop_size)
         self.scale_min = scale_min
         self.scale_max = scale_max
@@ -251,11 +250,11 @@ class RandomSizeAndCrop(object):
         img, mask = self.crop(resized_img, resized_mask)
         return img, mask
 
+
 class RandomHorizontallyFlip(object):
     def __call__(self, img, mask):
         if random.random() < 0.5:
-            return img.transpose(Image.FLIP_LEFT_RIGHT), mask.transpose(
-                Image.FLIP_LEFT_RIGHT)
+            return img.transpose(Image.FLIP_LEFT_RIGHT), mask.transpose(Image.FLIP_LEFT_RIGHT)
         return img, mask
 
 
@@ -342,7 +341,7 @@ def adjust_hue(img, hue_factor):
     Returns:
         PIL Image: Hue adjusted image.
     """
-    if not(-0.5 <= hue_factor <= 0.5):
+    if not (-0.5 <= hue_factor <= 0.5):
         raise ValueError('hue_factor is not in [-0.5, 0.5].'.format(hue_factor))
 
     if not _is_pil_image(img):
@@ -377,6 +376,7 @@ class ColorJitter(object):
         hue(float): How much to jitter hue. hue_factor is chosen uniformly from
             [-hue, hue]. Should be >=0 and <= 0.5.
     """
+
     def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
         self.brightness = brightness
         self.contrast = contrast
@@ -397,22 +397,22 @@ class ColorJitter(object):
         if brightness > 0:
             brightness_factor = np.random.uniform(max(0, 1 - brightness), 1 + brightness)
             transforms.append(
-                torch_tr.Lambda(lambda img: adjust_brightness(img, brightness_factor)))
+                torch_tr.Lambda(lambda img: adjust_brightness(img, brightness_factor))
+            )
 
         if contrast > 0:
             contrast_factor = np.random.uniform(max(0, 1 - contrast), 1 + contrast)
-            transforms.append(
-                torch_tr.Lambda(lambda img: adjust_contrast(img, contrast_factor)))
+            transforms.append(torch_tr.Lambda(lambda img: adjust_contrast(img, contrast_factor)))
 
         if saturation > 0:
             saturation_factor = np.random.uniform(max(0, 1 - saturation), 1 + saturation)
             transforms.append(
-                torch_tr.Lambda(lambda img: adjust_saturation(img, saturation_factor)))
+                torch_tr.Lambda(lambda img: adjust_saturation(img, saturation_factor))
+            )
 
         if hue > 0:
             hue_factor = np.random.uniform(-hue, hue)
-            transforms.append(
-                torch_tr.Lambda(lambda img: adjust_hue(img, hue_factor)))
+            transforms.append(torch_tr.Lambda(lambda img: adjust_hue(img, hue_factor)))
 
         np.random.shuffle(transforms)
         transform = torch_tr.Compose(transforms)
@@ -427,7 +427,5 @@ class ColorJitter(object):
         Returns:
             PIL Image: Color jittered image.
         """
-        transform = self.get_params(self.brightness, self.contrast,
-                                    self.saturation, self.hue)
+        transform = self.get_params(self.brightness, self.contrast, self.saturation, self.hue)
         return transform(img)
-

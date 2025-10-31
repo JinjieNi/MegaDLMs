@@ -15,14 +15,12 @@ if __name__ == '__main__':
     print('parsing the arguments ...')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--input-file', type=str, default=None, help='Input'\
-        ' json file where id needs to be added')
-    parser.add_argument('--output-file', type=str, default=None, help=\
-        'Output file name with id')
-    parser.add_argument('--id-prefix', type=str, default=None, help=\
-        'Id prefix')
-    parser.add_argument('--log-interval', type=int, default=100,
-                       help='Log interval')
+    parser.add_argument(
+        '--input-file', type=str, default=None, help='Input' ' json file where id needs to be added'
+    )
+    parser.add_argument('--output-file', type=str, default=None, help='Output file name with id')
+    parser.add_argument('--id-prefix', type=str, default=None, help='Id prefix')
+    parser.add_argument('--log-interval', type=int, default=100, help='Log interval')
     args = parser.parse_args()
 
     print('Adding ids to dataset ...')
@@ -42,13 +40,17 @@ if __name__ == '__main__':
         f_output.write('\n'.encode('utf-8'))
 
         if unique_ids % args.log_interval == 0:
-            print('    processed {:9d} documents in {:.2f} seconds ...'.format( \
-                    unique_ids, time.time() - start_time), flush=True)
+            print(
+                '    processed {:9d} documents in {:.2f} seconds ...'.format(
+                    unique_ids, time.time() - start_time
+                ),
+                flush=True,
+            )
 
         unique_ids += 1
 
     # Close the file.
     f_input.close()
     f_output.close()
-    
+
     print('done :-)', flush=True)

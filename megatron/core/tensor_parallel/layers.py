@@ -10,8 +10,8 @@ from typing import Any, Callable, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
 from torch.nn import Linear as TorchLinear
+from torch.nn.parameter import Parameter
 
 from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.parallel_state import (
@@ -1209,12 +1209,7 @@ class RowParallelLinear(torch.nn.Module):
 
 
 class WrappedTorchLinear(TorchLinear):
-    def __init__(
-        self,
-        input_size,
-        output_size,
-        **kwargs
-    ):
+    def __init__(self, input_size, output_size, **kwargs):
         super().__init__(input_size, output_size, bias=kwargs['bias'])
 
     def forward(self, input_):

@@ -11,6 +11,7 @@ from collections import namedtuple
 
 import numpy as np
 import torch
+from pretrain_gpt import model_provider
 
 from megatron.core import parallel_state
 from megatron.core.datasets.gpt_dataset import _get_ltor_masks_and_position_ids
@@ -26,7 +27,6 @@ from megatron.training.checkpointing import load_checkpoint as _load_checkpoint
 from megatron.training.checkpointing import save_checkpoint as _save_checkpoint
 from megatron.training.global_vars import set_global_variables, unset_global_variables
 from megatron.training.training import get_model
-from pretrain_gpt import model_provider
 from tests.unit_tests.test_utilities import Utils
 
 CHECKPOINTS_DIR = "/tmp/ckpt-converter-tests"

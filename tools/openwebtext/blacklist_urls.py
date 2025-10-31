@@ -5,125 +5,128 @@
 
 import glob
 import re
-import time
-import tldextract
 import sys
+import time
 
+import tldextract
 
 # List of the domains to blacklist.
-domain_blacklist = set([
-    '500px',
-    'aapks',
-    'akamaihd',
-    'amazon',
-    'apple',
-    'artifactfire',
-    'artstation',
-    'awwni',
-    'bandcamp',
-    'battleforthenet',
-    'coinscalendar',
-    'dailymotion',
-    'deviantart',
-    'discord',
-    'discordapp',
-    'dlapkandroid',
-    'dropbox',
-    'e621',
-    'ebay',
-    'edealinfo',
-    'erome',
-    'eroshare',
-    'explosm',
-    'facebook',
-    'fbcdn',
-    'flickr',
-    'furaffinity',
-    'futhead',
-    'gatopardo',
-    'gfycat',
-    'gifsound',
-    'gifsoup',
-    'giphy',
-    'github',
-    'google',
-    'gunprime',
-    'gyazo',
-    'horsefucker',
-    'hotdealstar',
-    'imagefap',
-    'imageshack',
-    'imgflip',
-    'imgur',
-    'instagram',
-    'karmadecay',
-    'kryptocal',
-    'kym-cdn',
-    'liveleak',
-    'livememe',
-    'lmgtfy',
-    'magaimg',
-    'memegenerator',
-    'minorplanetcenter',
-    'minus',
-    'mobafire',
-    'morejpeg',
-    'nocookie',
-    'pcpartpicker',
-    'photobucket',
-    'pinimg',
-    'pinterest',
-    'pixiv',
-    'pornhub',
-    'prntscr',
-    'puu',
-    'qkme',
-    'quickmeme',
-    'radd',
-    'redd',
-    'reddit',
-    'reddit-stream',
-    'redditlog',
-    'redditmedia',
-    'reddituploads',
-    'redtube',
-    'reupp',
-    'reverb',
-    'roanoke',
-    'rollingstone',
-    'sli',
-    'soundcloud',
-    'soundgasm',
-    'spankbang',
-    'spotify',
-    'strawpoll',
-    'streamable',
-    'timeanddate',
-    'tinypic',
-    'touhouradio',
-    'tumblr',
-    'twimg',
-    'twitch',
-    'twitter',
-    'vid',
-    'vimeo',
-    'vine',
-    'vkaao',
-    'vocaroo',
-    'voyagefusion',
-    'walmart',
-    'wciu',
-    'wikimedia',
-    'wikipedia',
-    'xhamster',
-    'xkcd',
-    'xvideos',
-    'youtu',
-    'youtube',
-    'youtubedoubler',
-    'ytimg',
-    'zillexplorer',
-])
+domain_blacklist = set(
+    [
+        '500px',
+        'aapks',
+        'akamaihd',
+        'amazon',
+        'apple',
+        'artifactfire',
+        'artstation',
+        'awwni',
+        'bandcamp',
+        'battleforthenet',
+        'coinscalendar',
+        'dailymotion',
+        'deviantart',
+        'discord',
+        'discordapp',
+        'dlapkandroid',
+        'dropbox',
+        'e621',
+        'ebay',
+        'edealinfo',
+        'erome',
+        'eroshare',
+        'explosm',
+        'facebook',
+        'fbcdn',
+        'flickr',
+        'furaffinity',
+        'futhead',
+        'gatopardo',
+        'gfycat',
+        'gifsound',
+        'gifsoup',
+        'giphy',
+        'github',
+        'google',
+        'gunprime',
+        'gyazo',
+        'horsefucker',
+        'hotdealstar',
+        'imagefap',
+        'imageshack',
+        'imgflip',
+        'imgur',
+        'instagram',
+        'karmadecay',
+        'kryptocal',
+        'kym-cdn',
+        'liveleak',
+        'livememe',
+        'lmgtfy',
+        'magaimg',
+        'memegenerator',
+        'minorplanetcenter',
+        'minus',
+        'mobafire',
+        'morejpeg',
+        'nocookie',
+        'pcpartpicker',
+        'photobucket',
+        'pinimg',
+        'pinterest',
+        'pixiv',
+        'pornhub',
+        'prntscr',
+        'puu',
+        'qkme',
+        'quickmeme',
+        'radd',
+        'redd',
+        'reddit',
+        'reddit-stream',
+        'redditlog',
+        'redditmedia',
+        'reddituploads',
+        'redtube',
+        'reupp',
+        'reverb',
+        'roanoke',
+        'rollingstone',
+        'sli',
+        'soundcloud',
+        'soundgasm',
+        'spankbang',
+        'spotify',
+        'strawpoll',
+        'streamable',
+        'timeanddate',
+        'tinypic',
+        'touhouradio',
+        'tumblr',
+        'twimg',
+        'twitch',
+        'twitter',
+        'vid',
+        'vimeo',
+        'vine',
+        'vkaao',
+        'vocaroo',
+        'voyagefusion',
+        'walmart',
+        'wciu',
+        'wikimedia',
+        'wikipedia',
+        'xhamster',
+        'xkcd',
+        'xvideos',
+        'youtu',
+        'youtube',
+        'youtubedoubler',
+        'ytimg',
+        'zillexplorer',
+    ]
+)
+
 
 def domain_is_in_blacklist(url):
     domain = tldextract.extract(url).domain
@@ -133,8 +136,7 @@ def domain_is_in_blacklist(url):
 # List of extentions to blacklist.
 extentions_blacklist = (
     '.3gp',
-    '.7z'
-    '.ai',
+    '.7z' '.ai',
     '.aif',
     '.apk',
     '.app',
@@ -201,6 +203,7 @@ extentions_blacklist = (
     '.zip',
 )
 
+
 def extention_is_in_blacklist(url):
     if url.split('?')[0].lower().endswith(extentions_blacklist):
         return True
@@ -211,20 +214,29 @@ def extention_is_in_blacklist(url):
 # This function is adapted from:
 #   https://stackoverflow.com/questions/7160737/python-how-to-validate-a-url-in-python-malformed-or-not
 url_regex = re.compile(
-    r'^(?:http)s?://' # http:// or https://
-    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|' #domain...
-    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
-    r'(?::\d+)?' # optional port
-    r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    r'^(?:http)s?://'  # http:// or https://
+    r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain...
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
+    r'(?::\d+)?'  # optional port
+    r'(?:/?|[/?]\S+)$',
+    re.IGNORECASE,
+)
+
+
 def url_is_malformed(url):
     return re.match(url_regex, url) is None
 
 
-def print_progress(prefix, start_time, urls_counter,
-                   domain_blacklist_counter,
-                   extention_blacklist_counter,
-                   short_url_counter, malformed_url_counter,
-                   duplicate_url_counter):
+def print_progress(
+    prefix,
+    start_time,
+    urls_counter,
+    domain_blacklist_counter,
+    extention_blacklist_counter,
+    short_url_counter,
+    malformed_url_counter,
+    duplicate_url_counter,
+):
     string = prefix + ' | '
     string += 'time elapsed (s): {:.2f} | '.format(time.time() - start_time)
     string += 'number of urls: {} | '.format(urls_counter)
@@ -237,7 +249,6 @@ def print_progress(prefix, start_time, urls_counter,
 
 
 if __name__ == '__main__':
-
 
     print('remove blacklisted urls ..')
 
@@ -281,17 +292,27 @@ if __name__ == '__main__':
                 else:
                     urls.add(url)
                 if urls_counter % 100000 == 0:
-                    print_progress('PROGRESS', start_time, urls_counter,
-                                   domain_blacklist_counter,
-                                   extention_blacklist_counter,
-                                   short_url_counter, malformed_url_counter,
-                                   duplicate_url_counter)
+                    print_progress(
+                        'PROGRESS',
+                        start_time,
+                        urls_counter,
+                        domain_blacklist_counter,
+                        extention_blacklist_counter,
+                        short_url_counter,
+                        malformed_url_counter,
+                        duplicate_url_counter,
+                    )
 
-    print_progress('FINAL', start_time, urls_counter,
-                   domain_blacklist_counter,
-                   extention_blacklist_counter,
-                   short_url_counter, malformed_url_counter,
-                   duplicate_url_counter)
+    print_progress(
+        'FINAL',
+        start_time,
+        urls_counter,
+        domain_blacklist_counter,
+        extention_blacklist_counter,
+        short_url_counter,
+        malformed_url_counter,
+        duplicate_url_counter,
+    )
 
     # Write the final set of urls.
     print('> writing cleaned up url list to {}'.format(output))

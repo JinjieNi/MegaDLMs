@@ -1543,7 +1543,9 @@ def get_data_parallel_rank(with_context_parallel=False, partial_data_parallel=Fa
             )
         )
     else:
-        raise ValueError(f"torch.distributed.is_available(): {torch.distributed.is_available()}, torch.distributed.is_initialized(): {torch.distributed.is_initialized()}")
+        raise ValueError(
+            f"torch.distributed.is_available(): {torch.distributed.is_available()}, torch.distributed.is_initialized(): {torch.distributed.is_initialized()}"
+        )
 
 
 def get_context_parallel_world_size():

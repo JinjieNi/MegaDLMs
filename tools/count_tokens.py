@@ -13,9 +13,9 @@ We then use standard Python file I/O for both the .idx and .bin files.
 This custom variant is used only here for counting and does not affect other files.
 """
 
-import os
 import argparse
 import json
+import os
 import sys
 
 PROJECT_DIR = os.environ.get("PROJECT_DIR")
@@ -39,10 +39,11 @@ def get_datadirs_and_weights(weighted_prefix: str):
             if not os.path.exists(data_dir):
                 raise ValueError(f"Data directory {data_dir} does not exist")
             datadirs.append(prefix)
-            
+
     assert len(weights) == len(datadirs)
     return zip(weights, datadirs)
-        
+
+
 def inspect_index(path_prefix: str):
     """
     Given a path prefix (without '.bin' or '.idx'), load the indexed dataset
@@ -57,14 +58,12 @@ def inspect_index(path_prefix: str):
 
     # The dataset size (number of sequences).
     total_sequences = len(dataset)
-    
 
     # The total number of tokens across all sequences.
     total_tokens = dataset.sequence_lengths.sum()
-    
 
-    return total_sequences,total_tokens
-    
+    return total_sequences, total_tokens
+
 
 def main():
     """
@@ -78,22 +77,22 @@ def main():
         "--weighted-prefix",
         type=str,
         required=True,
-        help="A string as specified in the --data-path argument in megatron.training.arguments.py. Must be a list of weight prefix pairs e.g. weight1 prefix1 weight2 prefix2"
+        help="A string as specified in the --data-path argument in megatron.training.arguments.py. Must be a list of weight prefix pairs e.g. weight1 prefix1 weight2 prefix2",
     )
     args = parser.parse_args()
-    
+
     weights_and_prefixes = get_datadirs_and_weights(args.weighted_prefix)
-    
+
     total_tokens_overall = []
     total_sequences_overall = []
     weights_overall = []
-    
+
     for wp_pair in weights_and_prefixes:
         weight, prefix = wp_pair
-        
+
         data_dir = os.path.dirname(prefix)
         statistics_file = os.path.join(data_dir, f".statistics_{prefix.replace('/', '_')}")
-        
+
         if os.path.exists(statistics_file):
             with open(statistics_file, "r") as f:
                 statistics = json.load(f)
@@ -103,28 +102,37 @@ def main():
             total_sequences, total_tokens = inspect_index(prefix)
             statistics = {
                 "total_sequences": str(total_sequences),
-                "total_tokens": str(total_tokens)
+                "total_tokens": str(total_tokens),
             }
             with open(statistics_file, "w") as f:
                 json.dump(statistics, f)
-        
+
         total_sequences_overall.append(total_sequences)
         total_tokens_overall.append(total_tokens)
         weights_overall.append(weight)
-        
+
         print("--------------------------------")
         print(f"Inspecting index for {prefix}")
         print(f"Total number of sequences: {total_sequences}")
         print(f"Total number of tokens: {round(total_tokens / 1e9, 2)} Billion")
         print("--------------------------------")
-    
-    max_possible_tokens = min([token_num / weight for token_num, weight in zip(total_tokens_overall, weights_overall)])
-    max_possible_sequences = min([seq_num / weight for seq_num, weight in zip(total_sequences_overall, weights_overall)])
-    
-    print("--------------------------------") 
-    print(f"Maximum number of sequences sampled under this data mixture (estimated): {max_possible_sequences}")
-    print(f"Maximum number of tokens sampled under this data mixture (estimated): {round(max_possible_tokens / 1e9, 2)} Billion")
+
+    max_possible_tokens = min(
+        [token_num / weight for token_num, weight in zip(total_tokens_overall, weights_overall)]
+    )
+    max_possible_sequences = min(
+        [seq_num / weight for seq_num, weight in zip(total_sequences_overall, weights_overall)]
+    )
+
     print("--------------------------------")
-    
+    print(
+        f"Maximum number of sequences sampled under this data mixture (estimated): {max_possible_sequences}"
+    )
+    print(
+        f"Maximum number of tokens sampled under this data mixture (estimated): {round(max_possible_tokens / 1e9, 2)} Billion"
+    )
+    print("--------------------------------")
+
+
 if __name__ == "__main__":
     main()

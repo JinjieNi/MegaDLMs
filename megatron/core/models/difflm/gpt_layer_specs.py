@@ -5,8 +5,16 @@ from typing import Optional
 
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.models.difflm.moe_module_specs import get_moe_module_spec
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear, WrappedTorchLinear
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules, DiffLMSelfAttention
+from megatron.core.tensor_parallel.layers import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    WrappedTorchLinear,
+)
+from megatron.core.transformer.attention import (
+    DiffLMSelfAttention,
+    SelfAttention,
+    SelfAttentionSubmodules,
+)
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
@@ -21,7 +29,11 @@ from megatron.core.transformer.transformer_block import (
     get_num_layers_to_build,
 )
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules, DiffLMTransformerLayer
+from megatron.core.transformer.transformer_layer import (
+    DiffLMTransformerLayer,
+    TransformerLayer,
+    TransformerLayerSubmodules,
+)
 from megatron.core.utils import is_te_min_version
 
 try:
@@ -50,11 +62,11 @@ except ImportError:
     warnings.warn('Apex is not installed. Falling back to Torch Norm')
     LNImpl = WrappedTorchNorm
 
-from megatron.core.transformer.torch_norm import WrappedTorchNorm
-from megatron.core.transformer.qwen2_norm import Qwen2RMSNorm
-
 from megatron.core.extensions.flex_attn import TorchFlexAttention
 from megatron.core.extensions.torch_modules import Qwen2LayerNormTorchLinear
+from megatron.core.transformer.qwen2_norm import Qwen2RMSNorm
+from megatron.core.transformer.torch_norm import WrappedTorchNorm
+
 
 def get_gpt_layer_with_transformer_engine_spec(
     num_experts: Optional[int] = None,
@@ -145,6 +157,7 @@ def get_gpt_layer_with_transformer_engine_spec(
             ),
         )
 
+
 def get_difflm_layer_with_transformer_engine_spec(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
@@ -192,7 +205,7 @@ def get_difflm_layer_with_transformer_engine_spec(
         # for QKLayerNorm if TE Version < 1.9;
         # we instead use the Apex implementation.
         qk_norm = TENorm if is_te_min_version("1.9.0") else FusedLayerNorm
-        
+
         if attn_mask_type == 'causal_bottom_right':
             attn_mask_type = AttnMaskType.causal_bottom_right
             print("Using causal_bottom_right attention mask.")
@@ -324,6 +337,7 @@ def get_gpt_layer_local_spec(
             ),
         )
 
+
 def get_difflm_layer_local_spec(
     num_experts: Optional[int] = None,
     moe_grouped_gemm: Optional[bool] = False,
@@ -414,6 +428,7 @@ def get_difflm_layer_local_spec(
             ),
         )
 
+
 def _get_mlp_module_spec(
     use_te: Optional[bool] = True,
     num_experts: Optional[int] = None,
@@ -445,7 +460,8 @@ def _get_mlp_module_spec(
             moe_grouped_gemm=moe_grouped_gemm,
             moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
         )
-        
+
+
 def _get_difflm_mlp_module_spec(
     use_te: Optional[bool] = True,
     num_experts: Optional[int] = None,
@@ -479,6 +495,7 @@ def _get_difflm_mlp_module_spec(
             moe_use_legacy_grouped_gemm=moe_use_legacy_grouped_gemm,
             moe_router_type=moe_router_type,
         )
+
 
 def get_gpt_decoder_block_spec(
     config: TransformerConfig, use_transformer_engine: bool
@@ -568,11 +585,11 @@ def get_gpt_decoder_block_spec(
 
 
 def get_difflm_decoder_block_spec(
-    config: TransformerConfig, 
-    use_transformer_engine: bool, 
+    config: TransformerConfig,
+    use_transformer_engine: bool,
     attn_mask_type: Optional[str] = 'causal_bottom_right',
     core_attn_implementation: Optional[str] = TEDotProductAttention,
-    moe_router_type: Optional[str] = "expert_choice"
+    moe_router_type: Optional[str] = "expert_choice",
 ) -> TransformerBlockSubmodules:
     """GPT block spec."""
     if use_transformer_engine:
@@ -582,30 +599,26 @@ def get_difflm_decoder_block_spec(
 
     # Layer specs.
     assert use_transformer_engine
-    dense_layer_spec = (
-        get_difflm_layer_with_transformer_engine_spec(
-            num_experts=None,
-            moe_grouped_gemm=False,
-            qk_layernorm=config.qk_layernorm,
-            multi_latent_attention=config.multi_latent_attention,
-            moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
-            moe_router_type=moe_router_type,
-            attn_mask_type=attn_mask_type,
-            core_attn_implementation=core_attn_implementation,
-        )
+    dense_layer_spec = get_difflm_layer_with_transformer_engine_spec(
+        num_experts=None,
+        moe_grouped_gemm=False,
+        qk_layernorm=config.qk_layernorm,
+        multi_latent_attention=config.multi_latent_attention,
+        moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
+        moe_router_type=moe_router_type,
+        attn_mask_type=attn_mask_type,
+        core_attn_implementation=core_attn_implementation,
     )
-    
-    moe_layer_spec = (
-        get_difflm_layer_with_transformer_engine_spec(
-            num_experts=config.num_moe_experts,
-            moe_grouped_gemm=config.moe_grouped_gemm,
-            qk_layernorm=config.qk_layernorm,
-            multi_latent_attention=config.multi_latent_attention,
-            moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
-            moe_router_type=moe_router_type,
-            attn_mask_type=attn_mask_type,
-            core_attn_implementation=core_attn_implementation,
-        )
+
+    moe_layer_spec = get_difflm_layer_with_transformer_engine_spec(
+        num_experts=config.num_moe_experts,
+        moe_grouped_gemm=config.moe_grouped_gemm,
+        qk_layernorm=config.qk_layernorm,
+        multi_latent_attention=config.multi_latent_attention,
+        moe_use_legacy_grouped_gemm=config.moe_use_legacy_grouped_gemm,
+        moe_router_type=moe_router_type,
+        attn_mask_type=attn_mask_type,
+        core_attn_implementation=core_attn_implementation,
     )
 
     # Parse config.moe_layer_freq to determine the pattern of expert/dense layers.

@@ -1,22 +1,29 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 
-import ftfy
 import json
-from langdetect import detect
-import numpy as np
-import time
 import os
 import sys
+import time
 
+import ftfy
+import numpy as np
+from langdetect import detect
 from tokenizer import Tokenizer
 
 MIN_DOCUMENT_LENGHT = 128
 
 
-def print_progress(prefix, start_time, num_docs, num_fixed_text,
-                   num_non_english_docs, chars_non_english_docs,
-                   num_small_docs, chars_small_docs):
+def print_progress(
+    prefix,
+    start_time,
+    num_docs,
+    num_fixed_text,
+    num_non_english_docs,
+    chars_non_english_docs,
+    num_small_docs,
+    chars_small_docs,
+):
 
     string = prefix + ' | '
     string += 'elapsed time: {:.2f} | '.format(time.time() - start_time)
@@ -74,17 +81,29 @@ def filter_corpus(filename, out_filename, print_interval=10000):
                     f.write('\n'.encode('utf-8'))
                     num_written_docs += 1
                     if num_docs % print_interval == 0:
-                        print_progress('[PROGRESS]', start_time, num_docs,
-                                       num_fixed_text, num_non_english_docs,
-                                       chars_non_english_docs,
-                                       num_small_docs, chars_small_docs)
+                        print_progress(
+                            '[PROGRESS]',
+                            start_time,
+                            num_docs,
+                            num_fixed_text,
+                            num_non_english_docs,
+                            chars_non_english_docs,
+                            num_small_docs,
+                            chars_small_docs,
+                        )
                 except Exception as e:
                     print('    skipping ', line, e)
 
-    print_progress('[FINAL]', start_time, num_docs,
-                   num_fixed_text, num_non_english_docs,
-                   chars_non_english_docs,
-                   num_small_docs, chars_small_docs)
+    print_progress(
+        '[FINAL]',
+        start_time,
+        num_docs,
+        num_fixed_text,
+        num_non_english_docs,
+        chars_non_english_docs,
+        num_small_docs,
+        chars_small_docs,
+    )
 
 
 if __name__ == '__main__':
@@ -98,5 +117,3 @@ if __name__ == '__main__':
     print('and will write the results to {}'.format(output_filename))
 
     filter_corpus(input_filename, output_filename)
-
-

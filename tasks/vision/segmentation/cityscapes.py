@@ -1,6 +1,6 @@
 # BSD 3-Clause License
 #
-# Copyright (c) Soumith Chintala 2016, 
+# Copyright (c) Soumith Chintala 2016,
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,19 +28,21 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-# code taken from 
+# code taken from
 # https://github.com/pytorch/vision/blob/main/torchvision/datasets/cityscapes.py
 # modified it to change max label index from 255 to 19 (num_classes)
 
-import torch
 import json
 import os
 from collections import namedtuple
-from typing import Any, Callable, Dict, List, Optional, Union, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
 import numpy as np
-from torchvision.datasets.utils import extract_archive, verify_str_arg, iterable_to_str
-from torchvision.datasets import VisionDataset
+import torch
 from PIL import Image
+from torchvision.datasets import VisionDataset
+from torchvision.datasets.utils import extract_archive, iterable_to_str, verify_str_arg
+
 from megatron.training import print_rank_0
 
 
@@ -77,34 +79,50 @@ class Cityscapes(VisionDataset):
                                  target_type='semantic')
             img, smnt = dataset[0]
     """
+
     num_classes = 19
     ignore_index = 19
     color_table = torch.tensor(
-        [[128, 64, 128],
-         [244, 35, 232],
-         [70, 70, 70],
-         [102, 102, 156],
-         [190, 153, 153],
-         [153, 153, 153],
-         [250, 170, 30],
-         [220, 220, 0],
-         [107, 142, 35],
-         [152, 251, 152],
-         [70, 130, 180],
-         [220, 20, 60],
-         [255, 0, 0],
-         [0, 0, 142],
-         [0, 0, 70],
-         [0, 60, 100],
-         [0, 80, 100],
-         [0, 0, 230],
-         [119, 11, 32],
-         [0, 0, 0]], dtype=torch.float, device='cuda')
-
+        [
+            [128, 64, 128],
+            [244, 35, 232],
+            [70, 70, 70],
+            [102, 102, 156],
+            [190, 153, 153],
+            [153, 153, 153],
+            [250, 170, 30],
+            [220, 220, 0],
+            [107, 142, 35],
+            [152, 251, 152],
+            [70, 130, 180],
+            [220, 20, 60],
+            [255, 0, 0],
+            [0, 0, 142],
+            [0, 0, 70],
+            [0, 60, 100],
+            [0, 80, 100],
+            [0, 0, 230],
+            [119, 11, 32],
+            [0, 0, 0],
+        ],
+        dtype=torch.float,
+        device='cuda',
+    )
 
     # Based on https://github.com/mcordts/cityscapesScripts
-    CityscapesClass = namedtuple('CityscapesClass', ['name', 'id', 'train_id', 
-        'category', 'category_id', 'has_instances', 'ignore_in_eval', 'color'])
+    CityscapesClass = namedtuple(
+        'CityscapesClass',
+        [
+            'name',
+            'id',
+            'train_id',
+            'category',
+            'category_id',
+            'has_instances',
+            'ignore_in_eval',
+            'color',
+        ],
+    )
 
     classes = [
         CityscapesClass('unlabeled', 0, 19, 'void', 0, False, True, (0, 0, 0)),
@@ -145,17 +163,17 @@ class Cityscapes(VisionDataset):
     ]
 
     # label2trainid
-    label2trainid   = { label.id  : label.train_id for label in classes}
+    label2trainid = {label.id: label.train_id for label in classes}
 
     def __init__(
-            self,
-            root: str,
-            split: str = "train",
-            mode: str = "fine",
-            resolution: int = 1024,
-            transform: Optional[Callable] = None,
-            target_transform: Optional[Callable] = None,
-            transforms: Optional[Callable] = None,
+        self,
+        root: str,
+        split: str = "train",
+        mode: str = "fine",
+        resolution: int = 1024,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        transforms: Optional[Callable] = None,
     ) -> None:
         super(Cityscapes, self).__init__(root, transforms, transform, target_transform)
         self.mode = 'gtFine' if mode == 'fine' else 'gtCoarse'
@@ -170,10 +188,11 @@ class Cityscapes(VisionDataset):
             img_dir = os.path.join(self.images_dir, city)
             target_dir = os.path.join(self.targets_dir, city)
             for file_name in os.listdir(img_dir):
-                target_name = '{}_{}_labelIds.png'.format(file_name.split('_leftImg8bit')[0], self.mode)
+                target_name = '{}_{}_labelIds.png'.format(
+                    file_name.split('_leftImg8bit')[0], self.mode
+                )
                 self.images.append(os.path.join(img_dir, file_name))
                 self.targets.append(os.path.join(target_dir, target_name))
-
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
@@ -184,13 +203,13 @@ class Cityscapes(VisionDataset):
             than one item. Otherwise target is a json object if target_type="polygon", else the image segmentation.
         """
         image = Image.open(self.images[index]).convert('RGB')
-        
-        target = Image.open(self.targets[index]) 
+
+        target = Image.open(self.targets[index])
         target = np.array(target)
 
         target_copy = target.copy()
         for k, v in Cityscapes.label2trainid.items():
-            binary_target = (target == k)
+            binary_target = target == k
             target_copy[binary_target] = v
         target = target_copy
 
@@ -204,4 +223,3 @@ class Cityscapes(VisionDataset):
     def __len__(self) -> int:
         # len(self.images)
         return len(self.images)
-

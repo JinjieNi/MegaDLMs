@@ -299,9 +299,15 @@ class _IndexReader(object):
             t_end = time.time()
             log_single_rank(logger, logging.DEBUG, f"\t> time elapsed: {t_end - t_beg:4f} seconds")
 
-        assert self.sequence_lengths.shape[0] == len(self), f"{self.sequence_lengths.shape[0]} != {len(self)}"
-        assert self.sequence_lengths.shape[0] == self.sequence_count, f"{self.sequence_lengths.shape[0]} != {self.sequence_count}"
-        assert self.sequence_lengths.shape[0] == self.document_indices[-1], f"{self.sequence_lengths.shape[0]} != {self.document_indices[-1]}"
+        assert self.sequence_lengths.shape[0] == len(
+            self
+        ), f"{self.sequence_lengths.shape[0]} != {len(self)}"
+        assert (
+            self.sequence_lengths.shape[0] == self.sequence_count
+        ), f"{self.sequence_lengths.shape[0]} != {self.sequence_count}"
+        assert (
+            self.sequence_lengths.shape[0] == self.document_indices[-1]
+        ), f"{self.sequence_lengths.shape[0]} != {self.document_indices[-1]}"
 
         log_single_rank(logger, logging.INFO, f"> total number of sequences: {len(self)}")
         log_single_rank(

@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+
 class Qwen2RMSNorm(nn.Module):
     def __init__(self, config, hidden_size, eps=1e-6):
         """

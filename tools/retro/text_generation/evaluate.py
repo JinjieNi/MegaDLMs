@@ -1,16 +1,16 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
 
-import sys
-import os
-from tqdm import tqdm
-import string
 import json
-import regex
-import numpy as np
+import os
+import string
+import sys
 
-sys.path.append(os.path.abspath(os.path.join(
-    os.path.join(os.path.dirname(__file__), "../../../"))))
+import numpy as np
+import regex
+from tqdm import tqdm
+
+sys.path.append(os.path.abspath(os.path.join(os.path.join(os.path.dirname(__file__), "../../../"))))
 from tools.retro.text_generation.metrics import F1Metric
 
 
@@ -35,13 +35,12 @@ def compute_f1_score(predicted_answers, groundtruth_answer, exp_name="default"):
     """Evaluating F1 Score"""
     print(len(predicted_answers), len(groundtruth_answer))
     if len(predicted_answers) != len(groundtruth_answer):
-        groundtruth_answer = groundtruth_answer[:len(predicted_answers)]
+        groundtruth_answer = groundtruth_answer[: len(predicted_answers)]
 
     guess_list = []
     answer_list = []
 
-    assert len(guess_list) == len(answer_list), \
-        "lengths of guess and answer are different!"
+    assert len(guess_list) == len(answer_list), "lengths of guess and answer are different!"
 
     for pred, ans in zip(predicted_answers, groundtruth_answer):
         pred = pred.strip()
@@ -59,8 +58,7 @@ def compute_f1_score(predicted_answers, groundtruth_answer, exp_name="default"):
         answer_list.append(ans)
 
     precision, recall, f1 = F1Metric.compute_all_pairs(guess_list, answer_list)
-    print('Method: %s; Precision: %.4f; recall: %.4f; f1: %.4f' % ( \
-        exp_name, precision, recall, f1))
+    print('Method: %s; Precision: %.4f; recall: %.4f; f1: %.4f' % (exp_name, precision, recall, f1))
 
 
 def load_groundtruth_file(data_file):
@@ -179,7 +177,7 @@ def evaluate_f1(ground_truth_file, prediction_file, reduced_test_only=False):
 
 if __name__ == "__main__":
     model_names = []
-    model_names += "retro-open_inst_pp1_same_format_ctx1_843m_128_5e-6",
+    model_names += ("retro-open_inst_pp1_same_format_ctx1_843m_128_5e-6",)
 
     for model_name in model_names:
         ckpt_path = "/path/to/checkpoints/{}/".format(model_name)
@@ -189,8 +187,12 @@ if __name__ == "__main__":
         iter = 1000
         model_param = "843m"
 
-        prediction_file = ckpt_path + "/retro-generate-nq_{}_{}_{}_test_greedy_0_20000_{}.txt".format(
-            n_ctx, n_enc, model_param, iter)
+        prediction_file = (
+            ckpt_path
+            + "/retro-generate-nq_{}_{}_{}_test_greedy_0_20000_{}.txt".format(
+                n_ctx, n_enc, model_param, iter
+            )
+        )
         ground_truth_file = "/path/to/NQ/test.json"
         print(prediction_file)
         print(ground_truth_file)

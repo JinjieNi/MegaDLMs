@@ -17,7 +17,7 @@ _async_calls_queue = AsyncCallsQueue()
 
 
 def schedule_async_save(async_request: AsyncRequest):
-    """ Schedule the async save request.
+    """Schedule the async save request.
 
     Args:
         async_request (AsyncRequest): the async save request.
@@ -26,7 +26,7 @@ def schedule_async_save(async_request: AsyncRequest):
 
 
 def maybe_finalize_async_save(blocking: bool = False):
-    """ Finalizes active async save calls.
+    """Finalizes active async save calls.
 
     Args:
         blocking (bool, optional): if True, will wait until all active requests

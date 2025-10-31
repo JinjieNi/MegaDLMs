@@ -1,11 +1,11 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
 """Utilities for transformer layers."""
+import math
 from functools import lru_cache
 from operator import itemgetter
 from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, Union
 
-import math
 import torch
 import torch.nn as nn
 
@@ -190,8 +190,6 @@ def sharded_state_dict_default(
     return module_sharded_sd
 
 
-
-
 class PositionalEmbedding(nn.Module):
     def __init__(self, max_seq_len, embed_model_dim):
         """
@@ -237,6 +235,8 @@ class PositionalEmbedding(nn.Module):
             if position_ids.dim() == 1:
                 # Expand dims to match [seq_len, batch_size]
                 position_ids = position_ids.unsqueeze(1)
-            position_encoding = self.pe[position_ids, 0, :]  # shape [seq_len, batch_size, embed_dim]
+            position_encoding = self.pe[
+                position_ids, 0, :
+            ]  # shape [seq_len, batch_size, embed_dim]
 
         return x + position_encoding

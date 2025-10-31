@@ -1,15 +1,15 @@
-
 # The following code is adapted from
-# https://github.com/facebookresearch/ParlAI/blob/master/parlai/core/metrics.py, 
-# which is licensed under the MIT license. More details on the license can be 
+# https://github.com/facebookresearch/ParlAI/blob/master/parlai/core/metrics.py,
+# which is licensed under the MIT license. More details on the license can be
 # found at https://github.com/facebookresearch/ParlAI/blob/master/LICENSE.
 
 """Provides standard metric evaluations for dialog."""
 
+import re
 from collections import Counter
 from typing import List
+
 import numpy as np
-import re
 from nltk import ngrams
 
 re_art = re.compile(r'\b(a|an|the)\b')

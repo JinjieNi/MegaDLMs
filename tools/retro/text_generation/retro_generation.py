@@ -4,28 +4,35 @@
 """Generation utilities."""
 import torch
 import torch.nn.functional as F
-from megatron.training import get_args, get_tokenizer
-from megatron.training import get_retro_args
+
 from megatron.core import mpu
-from megatron.training.utils import get_ltor_masks_and_position_ids, unwrap_model
 from megatron.inference.text_generation.communication import (
-    copy_from_last_to_first_pipeline_stage,
     broadcast_from_last_pipeline_stage,
-    broadcast_from_last_to_first_pipeline_stage, broadcast_int_list, broadcast_tensor)
+    broadcast_from_last_to_first_pipeline_stage,
+    broadcast_int_list,
+    broadcast_tensor,
+    copy_from_last_to_first_pipeline_stage,
+)
 from megatron.inference.text_generation.generation import _build_attention_mask_and_position_ids
 from megatron.inference.text_generation.sampling import sample
-
+from megatron.training import get_args, get_retro_args, get_tokenizer
+from megatron.training.utils import get_ltor_masks_and_position_ids, unwrap_model
 
 
 def retro_generate_tokens_probs_and_return_on_first_stage(
-        model, tokens, lengths, neighbours_array=None,
-        return_output_log_probs=False,
-        top_k=0, top_p=0.0,
-        temperature=1.0,
-        use_eod_token_for_early_termination=True,
-        stop_on_double_eol=False,
-        stop_on_eol=False,
-        logits_mask=None):
+    model,
+    tokens,
+    lengths,
+    neighbours_array=None,
+    return_output_log_probs=False,
+    top_k=0,
+    top_p=0.0,
+    temperature=1.0,
+    use_eod_token_for_early_termination=True,
+    stop_on_double_eol=False,
+    stop_on_eol=False,
+    logits_mask=None,
+):
     """Main token generation function.
 
     Args:
@@ -72,8 +79,7 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
         raise ValueError("context length + tokens_to_generate too large")
 
     # forward step.
-    unwrapped_model = unwrap_model(
-        model)
+    unwrapped_model = unwrap_model(model)
     unwrapped_model.language_model.seq_length = max_sequence_length
 
     # Added termination_id to support the case that we want to terminate the
@@ -94,24 +100,25 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
     generated_sequence_lengths = None
     if mpu.is_pipeline_last_stage():
         if return_output_log_probs:
-            output_log_probs = torch.empty(output_log_probs_size,
-                                           dtype=torch.float32,
-                                           device=torch.cuda.current_device())
-        generated_sequence_lengths = torch.ones(
-            batch_size, dtype=torch.int64,
-            device=torch.cuda.current_device()) * max_sequence_length
+            output_log_probs = torch.empty(
+                output_log_probs_size, dtype=torch.float32, device=torch.cuda.current_device()
+            )
+        generated_sequence_lengths = (
+            torch.ones(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
+            * max_sequence_length
+        )
 
     # Whether we have reached a termination id.
-    is_generation_done = torch.zeros(batch_size, dtype=torch.uint8,
-                                     device=torch.cuda.current_device())
+    is_generation_done = torch.zeros(
+        batch_size, dtype=torch.uint8, device=torch.cuda.current_device()
+    )
 
     # =============
     # Run infernece
     # =============
 
     with torch.no_grad():
-        attention_mask, position_ids = _build_attention_mask_and_position_ids(
-            tokens)
+        attention_mask, position_ids = _build_attention_mask_and_position_ids(tokens)
         for context_length in range(min_prompt_length, max_sequence_length):
             prev_context_length = 0
             sizes_list = None
@@ -121,32 +128,40 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
             if torch.distributed.get_rank() == 0:
                 neighbor_tokens = neighbours_array
                 neighbor_tokens_cuda_long_tensor = torch.cuda.LongTensor(
-                    neighbor_tokens.reshape((-1, retro_args.retro_gpt_retrieved_length)))
-                sizes_list = [neighbor_tokens_cuda_long_tensor.size(0),  # Batch size
-                              neighbor_tokens_cuda_long_tensor.size(1)]  # Sequence lenght
+                    neighbor_tokens.reshape((-1, retro_args.retro_gpt_retrieved_length))
+                )
+                sizes_list = [
+                    neighbor_tokens_cuda_long_tensor.size(0),  # Batch size
+                    neighbor_tokens_cuda_long_tensor.size(1),
+                ]  # Sequence lenght
             sizes_tensor = broadcast_int_list(2, int_list=sizes_list)
             sizes = sizes_tensor.tolist()
             neighbor_tokens_cuda_long_tensor = broadcast_tensor(
-                sizes, torch.int64, tensor=neighbor_tokens_cuda_long_tensor)
+                sizes, torch.int64, tensor=neighbor_tokens_cuda_long_tensor
+            )
 
             _, _, neighbor_position_ids = get_ltor_masks_and_position_ids(
                 neighbor_tokens_cuda_long_tensor,
                 tokenizer.eod,
                 args.reset_position_ids,
                 args.reset_attention_mask,
-                args.eod_mask_loss)
+                args.eod_mask_loss,
+            )
             neighbor_attention_mask = None
 
             # Pick the slice that we need to pass through the network.
             tokens2use = tokens[:, prev_context_length:4096]
             positions2use = position_ids[:, prev_context_length:4096]
-            attention_mask2use = attention_mask[
-                                 ..., prev_context_length:4096, :4096]
+            attention_mask2use = attention_mask[..., prev_context_length:4096, :4096]
 
-            logits = model(tokens2use, positions2use, attention_mask2use,
-                           retriever_input_ids=neighbor_tokens_cuda_long_tensor,
-                           retriever_position_ids=neighbor_position_ids, retriever_attn_mask=neighbor_attention_mask,
-                           )
+            logits = model(
+                tokens2use,
+                positions2use,
+                attention_mask2use,
+                retriever_input_ids=neighbor_tokens_cuda_long_tensor,
+                retriever_position_ids=neighbor_position_ids,
+                retriever_attn_mask=neighbor_attention_mask,
+            )
 
             if mpu.is_pipeline_last_stage():
                 # Always the last stage should have an output.
@@ -160,11 +175,13 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
                 if logits_mask is not None:
                     last_token_logits[:, logits_mask] = float('-Inf')
 
-                new_sample = sample(last_token_logits,
-                                    top_k=top_k,
-                                    top_p=top_p,
-                                    temperature=temperature,
-                                    vocab_size=tokenizer.vocab_size)
+                new_sample = sample(
+                    last_token_logits,
+                    top_k=top_k,
+                    top_p=top_p,
+                    temperature=temperature,
+                    vocab_size=tokenizer.vocab_size,
+                )
 
                 # If a prompt length is smaller or equal th current context
                 # length, it means we have started generating tokens
@@ -181,18 +198,17 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
                         # the token which we selected in the current logits,
                         # so shift by 1.
                         indices = torch.unsqueeze(
-                            tokens[
-                            :,
-                            (prev_context_length + 1):(context_length + 1)],
-                            2)
-                        output_log_probs[:,
-                        prev_context_length:context_length] = \
-                            torch.gather(log_probs, 2, indices).squeeze(2)
+                            tokens[:, (prev_context_length + 1) : (context_length + 1)], 2
+                        )
+                        output_log_probs[:, prev_context_length:context_length] = torch.gather(
+                            log_probs, 2, indices
+                        ).squeeze(2)
 
             # Update the tokens on the first stage so the next input to
             # the network is correct.
-            copy_from_last_to_first_pipeline_stage(batch_size, torch.int64,
-                                                   tokens[:, context_length])
+            copy_from_last_to_first_pipeline_stage(
+                batch_size, torch.int64, tokens[:, context_length]
+            )
 
             # Update the context length for the next token generation.
             prev_context_length = context_length
@@ -204,8 +220,11 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
                 # instead tokenization should be in the inference loop so stop sequences can be used
                 if stop_on_double_eol:
                     hit_double_eol = (new_sample == 628).byte() & started.byte()
-                    hit_two_eols = (new_sample == 198).byte() & (
-                            tokens[:, context_length - 1] == 198).byte() & started.byte()
+                    hit_two_eols = (
+                        (new_sample == 198).byte()
+                        & (tokens[:, context_length - 1] == 198).byte()
+                        & started.byte()
+                    )
                     done_token = hit_double_eol | hit_two_eols
                 elif stop_on_eol:
                     hit_double_eol = (new_sample == 628).byte() & started.byte()
@@ -214,16 +233,13 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
                 elif context_length > min_prompt_length + 64:  # previous retrov1 limitations
                     done_token = 1
                 else:
-                    done_token = (new_sample == termination_id).byte() & \
-                                 started.byte()
+                    done_token = (new_sample == termination_id).byte() & started.byte()
 
                 just_finished = (done_token & ~is_generation_done).bool()
-                generated_sequence_lengths[just_finished.view(-1)] = \
-                    context_length + 1
+                generated_sequence_lengths[just_finished.view(-1)] = context_length + 1
                 is_generation_done = is_generation_done | done_token
                 done = torch.all(is_generation_done)
-            done = broadcast_from_last_pipeline_stage(1, torch.uint8,
-                                                      tensor=done)
+            done = broadcast_from_last_pipeline_stage(1, torch.uint8, tensor=done)
             if use_eod_token_for_early_termination and done:
                 break
 
@@ -231,7 +247,7 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
     # Update the length of based on max generated length.
     # ===================================================
 
-    tokens = tokens[:, :(context_length + 1)]
+    tokens = tokens[:, : (context_length + 1)]
     if mpu.is_pipeline_last_stage():
         if return_output_log_probs:
             output_log_probs = output_log_probs[:, :context_length]
@@ -241,10 +257,12 @@ def retro_generate_tokens_probs_and_return_on_first_stage(
     # ======================================
 
     generated_sequence_lengths = broadcast_from_last_to_first_pipeline_stage(
-        batch_size, torch.int64, generated_sequence_lengths)
+        batch_size, torch.int64, generated_sequence_lengths
+    )
     if return_output_log_probs:
         output_log_probs_size = (batch_size, context_length)
         output_log_probs = broadcast_from_last_to_first_pipeline_stage(
-            output_log_probs_size, torch.float32, output_log_probs)
+            output_log_probs_size, torch.float32, output_log_probs
+        )
 
     return tokens, generated_sequence_lengths, output_log_probs

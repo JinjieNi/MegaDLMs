@@ -13,10 +13,10 @@ from torch.cuda import device as device_ctx_manager
 from torch.utils.checkpoint import detach_variable
 
 from megatron.core.parallel_state import (
+    get_data_parallel_rank,
     get_expert_model_parallel_rank,
     get_expert_tensor_parallel_rank,
     get_tensor_model_parallel_rank,
-    get_data_parallel_rank,
 )
 from megatron.core.utils import is_te_min_version, safely_set_viewless_tensor_data
 
@@ -27,6 +27,7 @@ _MODEL_PARALLEL_RNG_TRACKER_NAME = 'model-parallel-rng'
 _EXPERT_PARALLEL_RNG_TRACKER_NAME = 'expert-parallel-rng'
 _DATA_PARALLEL_RNG_TRACKER_NAME = 'data-parallel-rng'
 _DATA_PARALLEL_DIFF_RNG_TRACKER_NAME = 'data-parallel-diff-rng'
+
 
 def _set_cuda_rng_state(new_state, device=-1):
     """Sets the random number generator state of the current GPU.
@@ -72,6 +73,7 @@ def get_data_parallel_rng_tracker_name():
     """Get the data parallel rng tracker name"""
     global _DATA_PARALLEL_RNG_TRACKER_NAME
     return _DATA_PARALLEL_RNG_TRACKER_NAME
+
 
 def get_data_parallel_diff_rng_tracker_name():
     """Get the data parallel rng tracker name"""
@@ -227,7 +229,7 @@ def model_parallel_cuda_manual_seed(seed):
     # Set the default state.
     torch.cuda.manual_seed(data_parallel_seed)
     _CUDA_RNG_STATE_TRACKER.add(_DATA_PARALLEL_RNG_TRACKER_NAME, data_parallel_seed)
-    
+
     print("*" * 100)
     print(f"data_parallel_rank: {get_data_parallel_rank()}")
     print("*" * 100)

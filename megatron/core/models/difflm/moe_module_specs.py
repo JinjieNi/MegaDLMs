@@ -6,7 +6,7 @@ from typing import Optional
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.moe.experts import GroupedMLP, SequentialMLP, TEGroupedMLP
-from megatron.core.transformer.moe.moe_layer import MoELayer, MoESubmodules, MoELayerExpertChoice
+from megatron.core.transformer.moe.moe_layer import MoELayer, MoELayerExpertChoice, MoESubmodules
 from megatron.core.transformer.moe.shared_experts import SharedExpertMLP
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.utils import get_te_version, is_te_min_version
@@ -76,7 +76,7 @@ def get_moe_module_spec(
     shared_experts = ModuleSpec(module=SharedExpertMLP, params={"gate": False}, submodules=mlp)
 
     # MoE module spec
-    
+
     if moe_router_type == "expert_choice":
         print("Using expert choice router.")
         moe_layer = MoELayerExpertChoice
@@ -85,7 +85,7 @@ def get_moe_module_spec(
         moe_layer = MoELayer
     else:
         raise ValueError(f"Invalid router type: {moe_router_type}")
-    
+
     moe_module_spec = ModuleSpec(
         module=moe_layer, submodules=MoESubmodules(experts=experts, shared_experts=shared_experts)
     )

@@ -1,12 +1,12 @@
-from torch import Tensor
 import torch
+from torch import Tensor
 from torch.nn.attention.flex_attention import flex_attention
+
 flex_attention = torch.compile(flex_attention)
 
-from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.enums import AttnMaskType
-
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 
 class TorchFlexAttention(torch.nn.Module):
@@ -32,10 +32,10 @@ class TorchFlexAttention(torch.nn.Module):
 
     def get_extra_state(self):
         return None
-    
+
     def set_extra_state(self, extra_state):
         pass
-        
+
     def forward(
         self,
         query: Tensor,
@@ -47,13 +47,14 @@ class TorchFlexAttention(torch.nn.Module):
         packed_seq_params: PackedSeqParams = None,
     ):
         """Forward."""
-        query = query.transpose(0, 1).contiguous().transpose(1,2).contiguous()
-        key = key.transpose(0, 1).contiguous().transpose(1,2).contiguous()
-        value = value.transpose(0, 1).contiguous().transpose(1,2).contiguous()
-        core_attn_out = flex_attention(query, key, value, block_mask=attention_mask, enable_gqa=True)
-        core_attn_out = core_attn_out.transpose(1,2).contiguous().transpose(0, 1).contiguous()
+        query = query.transpose(0, 1).contiguous().transpose(1, 2).contiguous()
+        key = key.transpose(0, 1).contiguous().transpose(1, 2).contiguous()
+        value = value.transpose(0, 1).contiguous().transpose(1, 2).contiguous()
+        core_attn_out = flex_attention(
+            query, key, value, block_mask=attention_mask, enable_gqa=True
+        )
+        core_attn_out = core_attn_out.transpose(1, 2).contiguous().transpose(0, 1).contiguous()
         s, b, p, h = core_attn_out.shape
         core_attn_out = core_attn_out.reshape(s, b, p * h)
-        
+
         return core_attn_out
-    

@@ -721,7 +721,7 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         if 'common_step' in state_dict[optimizer_key]['state']:
             common_step = state_dict[optimizer_key]['state'].pop('common_step')
             self._restore_common_per_param_step(state_dict[optimizer_key], common_step)
-            
+
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Grad scaler.

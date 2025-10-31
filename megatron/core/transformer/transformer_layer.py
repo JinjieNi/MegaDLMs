@@ -171,8 +171,6 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
         # use_nvfuser = TORCH_MAJOR > 1 or (TORCH_MAJOR == 1 and TORCH_MINOR >= 10)
         # self.bias_dropout_add_exec_handler = nullcontext if use_nvfuser else torch.enable_grad
         self.bias_dropout_add_exec_handler = torch.enable_grad
-        
-        
 
     @staticmethod
     def _get_layer_offset(config: TransformerConfig):
@@ -290,13 +288,13 @@ class TransformerLayer(MegatronModule, BaseTransformerLayer):
                 context (Tensor): Updated context tensor if cross-attention is used,
                 otherwise None.
         """
-        
+
         # Residual connection.
         residual = hidden_states
 
         # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
-        
+
         if key_value_states is not None:
             key_value_states = self.input_layernorm(key_value_states)
 
@@ -425,7 +423,6 @@ class GLRTransformerLayer(TransformerLayer):
             hidden_dropout=hidden_dropout,
         )
 
-
     def forward(
         self,
         hidden_states,
@@ -470,7 +467,7 @@ class GLRTransformerLayer(TransformerLayer):
 
         # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
-        
+
         if key_value_states is not None:
             key_value_states = self.input_layernorm(key_value_states)
 
@@ -595,7 +592,6 @@ class DiffLMTransformerLayer(TransformerLayer):
             hidden_dropout=hidden_dropout,
         )
 
-
     def forward(
         self,
         hidden_states,
@@ -640,7 +636,7 @@ class DiffLMTransformerLayer(TransformerLayer):
 
         # Optional Input Layer norm
         input_layernorm_output = self.input_layernorm(hidden_states)
-        
+
         if key_value_states is not None:
             key_value_states = self.input_layernorm(key_value_states)
 
@@ -691,7 +687,7 @@ class DiffLMTransformerLayer(TransformerLayer):
 
         # Residual connection.
         residual = hidden_states
-        
+
         # Optional Layer norm post the cross-attention.
         pre_mlp_layernorm_output = self.pre_mlp_layernorm(hidden_states)
 
@@ -742,4 +738,3 @@ class DiffLMTransformerLayer(TransformerLayer):
         if prefixed_map:
             apply_prefix_mapping(sharded_state_dict, prefixed_map)
         return sharded_state_dict
-

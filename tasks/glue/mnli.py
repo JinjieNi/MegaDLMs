@@ -4,22 +4,20 @@
 
 from megatron.training import print_rank_0
 from tasks.data_utils import clean_text
-from .data import GLUEAbstractDataset
 
+from .data import GLUEAbstractDataset
 
 LABELS = {'contradiction': 0, 'entailment': 1, 'neutral': 2}
 
 
 class MNLIDataset(GLUEAbstractDataset):
 
-    def __init__(self, name, datapaths, tokenizer, max_seq_length,
-                 test_label='contradiction'):
+    def __init__(self, name, datapaths, tokenizer, max_seq_length, test_label='contradiction'):
         self.test_label = test_label
-        super().__init__('MNLI', name, datapaths,
-                         tokenizer, max_seq_length)
+        super().__init__('MNLI', name, datapaths, tokenizer, max_seq_length)
 
     def process_samples_from_single_path(self, filename):
-        """"Implement abstract method."""
+        """ "Implement abstract method."""
         print_rank_0(' > Processing {} ...'.format(filename))
 
         samples = []
@@ -36,13 +34,16 @@ class MNLIDataset(GLUEAbstractDataset):
                         print_rank_0(
                             '   reading {}, {} and {} columns and setting '
                             'labels to {}'.format(
-                                row[0].strip(), row[8].strip(),
-                                row[9].strip(), self.test_label))
+                                row[0].strip(), row[8].strip(), row[9].strip(), self.test_label
+                            )
+                        )
                     else:
-                        print_rank_0('    reading {} , {}, {}, and {} columns '
-                                     '...'.format(
-                                         row[0].strip(), row[8].strip(),
-                                         row[9].strip(), row[-1].strip()))
+                        print_rank_0(
+                            '    reading {} , {}, {}, and {} columns '
+                            '...'.format(
+                                row[0].strip(), row[8].strip(), row[9].strip(), row[-1].strip()
+                            )
+                        )
                     continue
 
                 text_a = clean_text(row[8].strip())
@@ -57,10 +58,12 @@ class MNLIDataset(GLUEAbstractDataset):
                 assert label in LABELS
                 assert unique_id >= 0
 
-                sample = {'text_a': text_a,
-                          'text_b': text_b,
-                          'label': LABELS[label],
-                          'uid': unique_id}
+                sample = {
+                    'text_a': text_a,
+                    'text_b': text_b,
+                    'label': LABELS[label],
+                    'uid': unique_id,
+                }
                 total += 1
                 samples.append(sample)
 

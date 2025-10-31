@@ -14,14 +14,17 @@ contain the FT package itself but supports its integration.
 
 import types
 from enum import Enum, auto
+
 from . import global_vars
+
 
 class StateMachineActions(Enum):
     NONE = auto()
     SAVE_CHECKPOINT = auto()
-    TRAIN_HEARTBEAT = auto() 
+    TRAIN_HEARTBEAT = auto()
     EVAL_HEARTBEAT = auto()
     UPDATE_TIMEOUT = auto()
+
 
 class _TrainingStateMachine:
     """
@@ -88,12 +91,15 @@ class _TrainingStateMachine:
 _GLOBAL_RANK_MONITOR_CLIENT = None
 _GLOBAL_STATE_MACHINE = _TrainingStateMachine()
 
+
 def _set_rank_monitor_client():
     from nvidia_resiliency_ext.fault_tolerance import RankMonitorClient
+
     cli = RankMonitorClient()
     global _GLOBAL_RANK_MONITOR_CLIENT
     global_vars._ensure_var_is_not_initialized(_GLOBAL_RANK_MONITOR_CLIENT, 'rank monitor client')
     _GLOBAL_RANK_MONITOR_CLIENT = cli
+
 
 def get_rank_monitor_client(action=StateMachineActions.NONE):
     global _GLOBAL_RANK_MONITOR_CLIENT, _GLOBAL_STATE_MACHINE
@@ -104,6 +110,7 @@ def get_rank_monitor_client(action=StateMachineActions.NONE):
             _GLOBAL_RANK_MONITOR_CLIENT = None
     _GLOBAL_STATE_MACHINE.perform_action(action)
     return _GLOBAL_RANK_MONITOR_CLIENT
+
 
 def can_update_timeouts():
     global _GLOBAL_STATE_MACHINE

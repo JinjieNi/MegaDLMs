@@ -4,19 +4,22 @@
 """Inference API."""
 import numpy as np
 import torch
+
 from megatron.core import mpu
-from megatron.training import print_rank_0, get_retro_args, get_args, get_tokenizer
-from megatron.inference.text_generation.communication import broadcast_float_list, broadcast_tensor, broadcast_int_list
-from megatron.inference.text_generation.generation import (
-    score_and_return_on_first_stage)
+from megatron.inference.text_generation.communication import (
+    broadcast_float_list,
+    broadcast_int_list,
+    broadcast_tensor,
+)
+from megatron.inference.text_generation.generation import score_and_return_on_first_stage
+from megatron.inference.text_generation.tokenization import detokenize_generations
+from megatron.training import get_args, get_retro_args, get_tokenizer, print_rank_0
 from tools.retro.text_generation.retro_generation import (
-    retro_generate_tokens_probs_and_return_on_first_stage)
-from megatron.inference.text_generation.tokenization import (
-    detokenize_generations)
+    retro_generate_tokens_probs_and_return_on_first_stage,
+)
 
 
-def tokenize_prompts(prompts=None, tokens_to_generate=None,
-                     add_BOS=None, rank=0):
+def tokenize_prompts(prompts=None, tokens_to_generate=None, add_BOS=None, rank=0):
     """Tokenize prompts and make them avaiable on all ranks."""
 
     # On all ranks set to None so we can pass them to functions
@@ -29,11 +32,14 @@ def tokenize_prompts(prompts=None, tokens_to_generate=None,
         assert prompts is not None
         assert tokens_to_generate is not None
         # Tensor of tokens padded and their unpadded length.
-        prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor = \
+        prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor = (
             _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS)
+        )
         # We need the sizes of these tensors for the boradcast
-        sizes_list = [prompts_tokens_cuda_long_tensor.size(0), # Batch size
-                      prompts_tokens_cuda_long_tensor.size(1)] # Sequence lenght
+        sizes_list = [
+            prompts_tokens_cuda_long_tensor.size(0),  # Batch size
+            prompts_tokens_cuda_long_tensor.size(1),
+        ]  # Sequence lenght
 
     # First, broadcast the sizes.
     sizes_tensor = broadcast_int_list(2, int_list=sizes_list, rank=rank)
@@ -42,28 +48,28 @@ def tokenize_prompts(prompts=None, tokens_to_generate=None,
     # and length tensors.
     sizes = sizes_tensor.tolist()
     prompts_tokens_cuda_long_tensor = broadcast_tensor(
-        sizes, torch.int64, tensor=prompts_tokens_cuda_long_tensor, rank=rank)
+        sizes, torch.int64, tensor=prompts_tokens_cuda_long_tensor, rank=rank
+    )
     prompts_length_cuda_long_tensor = broadcast_tensor(
-        sizes[0], torch.int64, tensor=prompts_length_cuda_long_tensor,
-        rank=rank)
+        sizes[0], torch.int64, tensor=prompts_length_cuda_long_tensor, rank=rank
+    )
 
     return prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor
 
 
 def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
     """Given a set of prompts and number of tokens to generate:
-        - tokenize prompts
-        - set the sequence length to be the max of length of prompts
-          plus the number of tokens we would like to generate
-        - pad all the sequences to this length so we can convert them
-          into a 2D tensor.
+    - tokenize prompts
+    - set the sequence length to be the max of length of prompts
+      plus the number of tokens we would like to generate
+    - pad all the sequences to this length so we can convert them
+      into a 2D tensor.
     """
 
     # Tokenize all the prompts.
     tokenizer = get_tokenizer()
     if add_BOS:
-        prompts_tokens = [[tokenizer.eod] + tokenizer.tokenize(prompt)
-                          for prompt in prompts]
+        prompts_tokens = [[tokenizer.eod] + tokenizer.tokenize(prompt) for prompt in prompts]
     else:
         prompts_tokens = [tokenizer.tokenize(prompt) for prompt in prompts]
 
@@ -93,18 +99,20 @@ def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
     return prompts_tokens_tensor, prompts_length_tensor
 
 
-def retro_generate_and_post_process(model,
-                              prompts=None,
-                              neighbours_array=None,
-                              tokens_to_generate=0,
-                              return_output_log_probs=False,
-                              top_k_sampling=0,
-                              top_p_sampling=0.0,
-                              temperature=1.0,
-                              add_BOS=False,
-                              use_eod_token_for_early_termination=True,
-                              random_seed=-1,
-                              logits_mask=None):
+def retro_generate_and_post_process(
+    model,
+    prompts=None,
+    neighbours_array=None,
+    tokens_to_generate=0,
+    return_output_log_probs=False,
+    top_k_sampling=0,
+    top_p_sampling=0.0,
+    temperature=1.0,
+    add_BOS=False,
+    use_eod_token_for_early_termination=True,
+    random_seed=-1,
+    logits_mask=None,
+):
     """Run inference and post-process outputs, i.e., detokenize,
     move to cpu and convert to list."""
 
@@ -121,54 +129,64 @@ def retro_generate_and_post_process(model,
         add_BOS=add_BOS,
         use_eod_token_for_early_termination=use_eod_token_for_early_termination,
         random_seed=random_seed,
-        logits_mask=logits_mask)
+        logits_mask=logits_mask,
+    )
 
     # Only post-process on first stage.
     if mpu.is_pipeline_first_stage():
-        tokens, prompts_plus_generations, prompts_plus_generations_segments = \
+        tokens, prompts_plus_generations, prompts_plus_generations_segments = (
             detokenize_generations(tokens, lengths, True)
+        )
 
         if return_output_log_probs:
             output_log_probs = output_log_probs.cpu().numpy().tolist()
-            for i, (prob, seg) in enumerate(zip(output_log_probs, prompts_plus_generations_segments)):
-                output_log_probs[i] = prob[:len(seg) - 1]
+            for i, (prob, seg) in enumerate(
+                zip(output_log_probs, prompts_plus_generations_segments)
+            ):
+                output_log_probs[i] = prob[: len(seg) - 1]
 
-        return prompts_plus_generations, prompts_plus_generations_segments, \
-               output_log_probs, tokens
+        return prompts_plus_generations, prompts_plus_generations_segments, output_log_probs, tokens
 
     return None
 
 
-def retro_generate(model,
-             prompts=None,
-             neighbours_array=None,
-             tokens_to_generate=0,
-             return_output_log_probs=False,
-             top_k_sampling=0,
-             top_p_sampling=0.0,
-             temperature=1.0,
-             add_BOS=False,
-             use_eod_token_for_early_termination=True,
-             stop_on_double_eol=False,
-             stop_on_eol=False,
-             random_seed=-1,
-             logits_mask=None):
+def retro_generate(
+    model,
+    prompts=None,
+    neighbours_array=None,
+    tokens_to_generate=0,
+    return_output_log_probs=False,
+    top_k_sampling=0,
+    top_p_sampling=0.0,
+    temperature=1.0,
+    add_BOS=False,
+    use_eod_token_for_early_termination=True,
+    stop_on_double_eol=False,
+    stop_on_eol=False,
+    random_seed=-1,
+    logits_mask=None,
+):
     """Given prompts and input parameters, run inference and return:
-       tokens: prompts plus the generated tokens.
-       lengths: length of the prompt + generations. Note that we can
-           discard tokens in the tokens tensor that are after the
-           corresponding length.
-       output_log_probs: log probs of the tokens.
+    tokens: prompts plus the generated tokens.
+    lengths: length of the prompt + generations. Note that we can
+        discard tokens in the tokens tensor that are after the
+        corresponding length.
+    output_log_probs: log probs of the tokens.
     """
 
     # Make sure input params are avaialble to all ranks.
-    values = [tokens_to_generate,
-              return_output_log_probs,
-              top_k_sampling, top_p_sampling,
-              temperature, add_BOS, use_eod_token_for_early_termination,
-              stop_on_double_eol,
-              stop_on_eol,
-              random_seed]
+    values = [
+        tokens_to_generate,
+        return_output_log_probs,
+        top_k_sampling,
+        top_p_sampling,
+        temperature,
+        add_BOS,
+        use_eod_token_for_early_termination,
+        stop_on_double_eol,
+        stop_on_eol,
+        random_seed,
+    ]
     values_float_tensor = broadcast_float_list(10, float_list=values)
     tokens_to_generate = int(values_float_tensor[0].item())
     return_output_log_probs = bool(values_float_tensor[1].item())
@@ -190,7 +208,8 @@ def retro_generate(model,
         assert prompts is not None
 
     context_tokens_tensor, context_length_tensor = tokenize_prompts(
-        prompts=prompts, tokens_to_generate=tokens_to_generate, add_BOS=add_BOS)
+        prompts=prompts, tokens_to_generate=tokens_to_generate, add_BOS=add_BOS
+    )
 
     retro_args = get_retro_args()
     retro_args.retro_gpt_chunk_length = context_length_tensor.item()
@@ -198,18 +217,26 @@ def retro_generate(model,
     retro_args = get_retro_args()
     args = get_args()
     r = retro_args.retro_gpt_retrieved_length
-    l = int(np.ceil(min(args.max_position_embeddings, context_tokens_tensor.size(1)) / retro_args.retro_gpt_chunk_length))
+    l = int(
+        np.ceil(
+            min(args.max_position_embeddings, context_tokens_tensor.size(1))
+            / retro_args.retro_gpt_chunk_length
+        )
+    )
     if torch.distributed.get_rank() == 0:
-        neighbours_array = neighbours_array.reshape(1, args.retro_num_neighbors, r).repeat(l, axis=0)  ## dim (l, k, r)
+        neighbours_array = neighbours_array.reshape(1, args.retro_num_neighbors, r).repeat(
+            l, axis=0
+        )  ## dim (l, k, r)
 
     if tokens_to_generate == 0:
-        return score_and_return_on_first_stage(
-            model, context_tokens_tensor, context_length_tensor)
+        return score_and_return_on_first_stage(model, context_tokens_tensor, context_length_tensor)
 
     # Main inference function.
     # Note that the outputs are available on the first stage.
     return retro_generate_tokens_probs_and_return_on_first_stage(
-        model, context_tokens_tensor, context_length_tensor,
+        model,
+        context_tokens_tensor,
+        context_length_tensor,
         neighbours_array=neighbours_array,
         return_output_log_probs=return_output_log_probs,
         top_k=top_k_sampling,
@@ -218,4 +245,5 @@ def retro_generate(model,
         use_eod_token_for_early_termination=use_eod_token_for_early_termination,
         stop_on_double_eol=stop_on_double_eol,
         stop_on_eol=stop_on_eol,
-        logits_mask=logits_mask)
+        logits_mask=logits_mask,
+    )

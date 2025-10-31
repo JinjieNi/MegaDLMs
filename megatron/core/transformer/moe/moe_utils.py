@@ -55,6 +55,7 @@ def switch_load_balancing_loss_func(
     )
     return aux_loss
 
+
 def ec_load_balancing_loss_func(
     probs: torch.Tensor,
     experts_per_token: torch.Tensor,
@@ -361,7 +362,7 @@ def topk_softmax_with_capacity(
     moe_router_topk_limited_devices: int = None,
     moe_router_topk_scaling_factor: float = None,
     deterministic_mode: bool = False,
-    log_tracker = None,
+    log_tracker=None,
 ):
     """Apply capacity and padding to the top-k selection.
     Args:
@@ -421,7 +422,7 @@ def topk_softmax_with_capacity(
             )
         else:
             scores, top_indices = torch.topk(logits, k=topk, dim=1)
-            
+
         if config.moe_router_activation_function == "softmax":
             probs = torch.softmax(scores, dim=-1, dtype=torch.float32).type_as(logits)
         elif config.moe_router_activation_function == "sigmoid":
@@ -429,8 +430,10 @@ def topk_softmax_with_capacity(
             sigmoid_denominator = torch.sum(probs, dim=-1, keepdim=True) + 1e-20
             probs = probs / sigmoid_denominator
         else:
-            raise ValueError(f"Invalid activation function: {config.moe_router_activation_function}")
-        
+            raise ValueError(
+                f"Invalid activation function: {config.moe_router_activation_function}"
+            )
+
         if moe_router_topk_scaling_factor:
             probs = probs * moe_router_topk_scaling_factor
 
@@ -438,13 +441,13 @@ def topk_softmax_with_capacity(
     topk_masked_gates = torch.zeros_like(logits).scatter(1, top_indices, probs)
     topk_map = torch.zeros_like(logits).int().scatter(1, top_indices, 1).bool()
     tokens_per_expert = topk_map.sum(dim=0)
-    
+
     if log_tracker is not None:
 
         e_capacity = get_capacity(
             num_tokens=num_tokens * topk, num_experts=num_experts, capacity_factor=1.0
         )
-        
+
         log_tracker(
             "topk_expert_capacity_utilization_ratio_mean", (tokens_per_expert / e_capacity).mean()
         )
@@ -486,11 +489,17 @@ def topk_softmax_with_capacity(
             # Get exceed mask and maskout exceeded probs and indices
             final_map = torch.logical_and(topk_map, capacity_mask)
             final_probs = topk_masked_gates * final_map
-            
+
         if log_tracker is not None:
-            num_dropped_tokens = topk_map.shape[0] * topk * capacity_factor - torch.logical_and(topk_map, capacity_mask).sum()
-            log_tracker("topk_token_drop_ratio", num_dropped_tokens / (topk_map.shape[0] * topk * capacity_factor))
-            
+            num_dropped_tokens = (
+                topk_map.shape[0] * topk * capacity_factor
+                - torch.logical_and(topk_map, capacity_mask).sum()
+            )
+            log_tracker(
+                "topk_token_drop_ratio",
+                num_dropped_tokens / (topk_map.shape[0] * topk * capacity_factor),
+            )
+
         return final_probs, final_map, tokens_per_expert
 
 
@@ -530,31 +539,43 @@ def expert_choice_softmax_with_capacity(
     if config.moe_shared_expert_intermediate_size is not None and config.shared_experts_with_logits:
         num_tokens = logits.shape[0]
         num_experts = logits.shape[1]
-        num_shared_experts = config.moe_shared_expert_intermediate_size // config.moe_ffn_hidden_size
+        num_shared_experts = (
+            config.moe_shared_expert_intermediate_size // config.moe_ffn_hidden_size
+        )
         num_experts = num_experts - num_shared_experts
-        logits = logits[:, :-num_shared_experts] # shared expert logits are not used in the routing
+        logits = logits[:, :-num_shared_experts]  # shared expert logits are not used in the routing
         shared_expert_logits = logits[:, -num_shared_experts:]
     else:
         num_tokens = logits.shape[0]
         num_experts = logits.shape[1]
-        
-    assert num_tokens // bsz == seq_length, f"Not match: num_tokens: {num_tokens}, bsz: {bsz}, seq_length: {seq_length}"
+
+    assert (
+        num_tokens // bsz == seq_length
+    ), f"Not match: num_tokens: {num_tokens}, bsz: {bsz}, seq_length: {seq_length}"
     if use_pre_softmax:
         # Pre softmax
         scores = torch.softmax(logits, dim=-1, dtype=torch.float32).type_as(logits)
 
         if moe_router_topk_limited_devices:
-            raise NotImplementedError("device_limited_topk is not supported with expert_choice_softmax")
+            raise NotImplementedError(
+                "device_limited_topk is not supported with expert_choice_softmax"
+            )
         else:
             if use_batch_level_expert_choice:
-                topk_ec = max(num_tokens * topk // num_experts, 1) # deal with the case when the token is not enough to fill the experts
+                topk_ec = max(
+                    num_tokens * topk // num_experts, 1
+                )  # deal with the case when the token is not enough to fill the experts
                 probs, top_indices = torch.topk(scores, k=topk_ec, dim=0)
             else:
-                topk_ec = max(seq_length * topk // num_experts, 1) # deal with the case when the token is not enough to fill the experts
+                topk_ec = max(
+                    seq_length * topk // num_experts, 1
+                )  # deal with the case when the token is not enough to fill the experts
                 # probs_intermediate: [topk_ec, bsz, num_experts]
                 # local_seq_indices: [topk_ec, bsz, num_experts] (values are seq_idx from 0 to seq_length-1)
-                probs_intermediate, local_seq_indices = torch.topk(scores.view(seq_length, bsz, num_experts), k=topk_ec, dim=0)
-                
+                probs_intermediate, local_seq_indices = torch.topk(
+                    scores.view(seq_length, bsz, num_experts), k=topk_ec, dim=0
+                )
+
                 # Reshape probs_intermediate to [topk_ec * bsz, num_experts]
                 probs = probs_intermediate.reshape(topk_ec * bsz, num_experts)
 
@@ -565,35 +586,45 @@ def expert_choice_softmax_with_capacity(
                     bsz, device=scores.device, dtype=local_seq_indices.dtype
                 ).view(1, bsz, 1)
                 global_token_indices = local_seq_indices * bsz + batch_idx_tensor
-                
+
                 # Reshape global_token_indices to [topk_ec * bsz, num_experts]
                 top_indices = global_token_indices.reshape(topk_ec * bsz, num_experts)
-        
+
         if config.expert_choice_routing_expert_scaling_factors is not None:
-            raise NotImplementedError("expert_choice_routing_expert_scaling_factors is not supported with pre-softmax at present. But it can be implemented.")
-        
+            raise NotImplementedError(
+                "expert_choice_routing_expert_scaling_factors is not supported with pre-softmax at present. But it can be implemented."
+            )
+
         # scale the norm of the routing experts to balance the shared and routing experts
         if moe_router_topk_scaling_factor:
             probs = probs * moe_router_topk_scaling_factor
-            
+
         topk_masked_gates = torch.zeros_like(logits).scatter(0, top_indices, probs)
         topk_map = torch.zeros_like(logits).int().scatter(0, top_indices, 1).bool()
         experts_per_token = topk_map.sum(dim=1)
     else:
         # Post softmax
         if moe_router_topk_scaling_factor:
-            raise NotImplementedError("moe_router_topk_scaling_factor is not supported with expert_choice_softmax")
-        
+            raise NotImplementedError(
+                "moe_router_topk_scaling_factor is not supported with expert_choice_softmax"
+            )
+
         if moe_router_topk_limited_devices:
-            raise 
+            raise
         else:
             if use_batch_level_expert_choice:
-                topk_ec = max(num_tokens * topk // num_experts, 1) # deal with the case when the token is not enough to fill the experts
+                topk_ec = max(
+                    num_tokens * topk // num_experts, 1
+                )  # deal with the case when the token is not enough to fill the experts
                 scores, top_indices = torch.topk(logits, k=topk_ec, dim=0)
             else:
-                topk_ec = max(seq_length * topk // num_experts, 1) # deal with the case when the token is not enough to fill the experts
-                scores_intermediate, local_seq_indices = torch.topk(logits.view(seq_length, bsz, num_experts), k=topk_ec, dim=0)
-                
+                topk_ec = max(
+                    seq_length * topk // num_experts, 1
+                )  # deal with the case when the token is not enough to fill the experts
+                scores_intermediate, local_seq_indices = torch.topk(
+                    logits.view(seq_length, bsz, num_experts), k=topk_ec, dim=0
+                )
+
                 # Reshape scores_intermediate to [topk_ec * bsz, num_experts]
                 scores = scores_intermediate.reshape(topk_ec * bsz, num_experts)
 
@@ -604,20 +635,25 @@ def expert_choice_softmax_with_capacity(
                     bsz, device=logits.device, dtype=local_seq_indices.dtype
                 ).view(1, bsz, 1)
                 global_token_indices = local_seq_indices * bsz + batch_idx_tensor
-                
+
                 # Reshape global_token_indices to [topk_ec * bsz, num_experts]
                 top_indices = global_token_indices.reshape(topk_ec * bsz, num_experts)
-        
+
         topk_map = torch.zeros_like(logits).int().scatter(0, top_indices, 1).bool()
         scores = torch.zeros_like(logits).scatter(0, top_indices, scores)
-        
-        if config.moe_shared_expert_intermediate_size is not None and config.shared_experts_with_logits:
+
+        if (
+            config.moe_shared_expert_intermediate_size is not None
+            and config.shared_experts_with_logits
+        ):
             # only the topk_masked_gates will be augmented with the shared expert shape
             scores = torch.cat([scores, shared_expert_logits], dim=-1)
-            topk_map_mask = torch.cat([~topk_map, torch.zeros_like(shared_expert_logits).bool()], dim=-1)
+            topk_map_mask = torch.cat(
+                [~topk_map, torch.zeros_like(shared_expert_logits).bool()], dim=-1
+            )
         else:
             topk_map_mask = ~topk_map
-        
+
         if config.moe_router_activation_function == "softmax":
             # mask out the other values
             # if all the values are -inf, then the softmax will return all nans for that row. However, later we will not index these nans.
@@ -631,21 +667,36 @@ def expert_choice_softmax_with_capacity(
             sigmoid_denominator = torch.sum(topk_masked_gates, dim=-1, keepdim=True) + 1e-20
             topk_masked_gates = topk_masked_gates / sigmoid_denominator
         else:
-            raise ValueError(f"Invalid activation function: {config.moe_router_activation_function}")
-        
+            raise ValueError(
+                f"Invalid activation function: {config.moe_router_activation_function}"
+            )
+
         if config.expert_choice_routing_expert_scaling_factors is not None:
-            if config.moe_shared_expert_intermediate_size is not None and config.shared_experts_with_logits:
-                raise NotImplementedError("expert_choice_routing_expert_scaling_factors is not supported with shared_experts_with_logits.")
-            
+            if (
+                config.moe_shared_expert_intermediate_size is not None
+                and config.shared_experts_with_logits
+            ):
+                raise NotImplementedError(
+                    "expert_choice_routing_expert_scaling_factors is not supported with shared_experts_with_logits."
+                )
+
             defined_scaling_factors = config.expert_choice_routing_expert_scaling_factors.split(",")
-            defined_scaling_factors = torch.tensor([float(factor) for factor in defined_scaling_factors], device=logits.device, dtype=logits.dtype)
-            assert len(defined_scaling_factors) == num_experts + 1, f"The number of defined scaling factors ({len(defined_scaling_factors)}) does not match the number of experts + 1: ({num_experts + 1})."
-            
+            defined_scaling_factors = torch.tensor(
+                [float(factor) for factor in defined_scaling_factors],
+                device=logits.device,
+                dtype=logits.dtype,
+            )
+            assert (
+                len(defined_scaling_factors) == num_experts + 1
+            ), f"The number of defined scaling factors ({len(defined_scaling_factors)}) does not match the number of experts + 1: ({num_experts + 1})."
+
             # scale the probs of each row (token)
-            num_experts_per_token = topk_map.sum(dim=1) # [num_tokens, ]
-            scaling_factors = defined_scaling_factors[num_experts_per_token] # [num_tokens, ]
-            topk_masked_gates = topk_masked_gates * scaling_factors.unsqueeze(1) # [num_tokens, num_experts]
-            
+            num_experts_per_token = topk_map.sum(dim=1)  # [num_tokens, ]
+            scaling_factors = defined_scaling_factors[num_experts_per_token]  # [num_tokens, ]
+            topk_masked_gates = topk_masked_gates * scaling_factors.unsqueeze(
+                1
+            )  # [num_tokens, num_experts]
+
         experts_per_token = topk_map.sum(dim=1)
 
     return topk_masked_gates, topk_map, experts_per_token

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class Tokens(object):
     """A class to represent a list of tokenized text."""
+
     TEXT = 0
     TEXT_WS = 1
     SPAN = 2
@@ -42,7 +43,7 @@ class Tokens(object):
     def slice(self, i=None, j=None):
         """Return a view of the list of tokens from [i, j)."""
         new_tokens = copy.copy(self)
-        new_tokens.data = self.data[i: j]
+        new_tokens.data = self.data[i:j]
         return new_tokens
 
     def untokenize(self):
@@ -105,10 +106,12 @@ class Tokens(object):
             return filter_fn(gram)
 
         words = self.words(uncased)
-        ngrams = [(s, e + 1)
-                  for s in range(len(words))
-                  for e in range(s, min(s + n, len(words)))
-                  if not _skip(words[s:e + 1])]
+        ngrams = [
+            (s, e + 1)
+            for s in range(len(words))
+            for e in range(s, min(s + n, len(words)))
+            if not _skip(words[s : e + 1])
+        ]
 
         # Concatenate into strings
         if as_strings:
@@ -130,7 +133,7 @@ class Tokens(object):
             if ner_tag != non_ent:
                 # Chomp the sequence
                 start = idx
-                while (idx < len(entities) and entities[idx] == ner_tag):
+                while idx < len(entities) and entities[idx] == ner_tag:
                     idx += 1
                 groups.append((self.slice(start, idx).untokenize(), ner_tag))
             else:
@@ -164,11 +167,13 @@ class SimpleTokenizer(Tokenizer):
         """
         self._regexp = regex.compile(
             '(%s)|(%s)' % (self.ALPHA_NUM, self.NON_WS),
-            flags=regex.IGNORECASE + regex.UNICODE + regex.MULTILINE
+            flags=regex.IGNORECASE + regex.UNICODE + regex.MULTILINE,
         )
         if len(kwargs.get('annotators', {})) > 0:
-            logger.warning('%s only tokenizes! Skipping annotators: %s' %
-                           (type(self).__name__, kwargs.get('annotators')))
+            logger.warning(
+                '%s only tokenizes! Skipping annotators: %s'
+                % (type(self).__name__, kwargs.get('annotators'))
+            )
         self.annotators = set()
 
     def tokenize(self, text):
@@ -187,11 +192,7 @@ class SimpleTokenizer(Tokenizer):
                 end_ws = span[1]
 
             # Format data
-            data.append((
-                token,
-                text[start_ws: end_ws],
-                span,
-            ))
+            data.append((token, text[start_ws:end_ws], span))
         return Tokens(data, self.annotators)
 
 
@@ -230,14 +231,16 @@ class SpacyTokenizer(Tokenizer):
             else:
                 end_ws = tokens[i].idx + len(tokens[i].text)
 
-            data.append((
-                tokens[i].text,
-                text[start_ws: end_ws],
-                (tokens[i].idx, tokens[i].idx + len(tokens[i].text)),
-                tokens[i].tag_,
-                tokens[i].lemma_,
-                tokens[i].ent_type_,
-            ))
+            data.append(
+                (
+                    tokens[i].text,
+                    text[start_ws:end_ws],
+                    (tokens[i].idx, tokens[i].idx + len(tokens[i].text)),
+                    tokens[i].tag_,
+                    tokens[i].lemma_,
+                    tokens[i].ent_type_,
+                )
+            )
 
         # Set special option for non-entity tag: '' vs 'O' in spaCy
         return Tokens(data, self.annotators, opts={'non_ent': ''})

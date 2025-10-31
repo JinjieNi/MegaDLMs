@@ -32,13 +32,13 @@ from tasks.zeroshot_gpt.evaluate import process_batch
 def model_provider(pre_process=True, post_process=True) -> GPTModel:
     """Builds the model.
 
-        Args:
-            pre_process (bool, optional): Set to true if you need to compute embeddings. Defaults to True.
-            post_process (bool, optional): Set to true if you need to want to compute output logits/loss. Defaults to True.
+    Args:
+        pre_process (bool, optional): Set to true if you need to compute embeddings. Defaults to True.
+        post_process (bool, optional): Set to true if you need to want to compute output logits/loss. Defaults to True.
 
-        Returns:
-            GPTModel: The returned model. Only works for Transformer Engine implementations.
-        """
+    Returns:
+        GPTModel: The returned model. Only works for Transformer Engine implementations.
+    """
 
     args = get_args()
 
@@ -72,7 +72,7 @@ def model_provider(pre_process=True, post_process=True) -> GPTModel:
             parallel_output=True,
             share_embeddings_and_output_weights=not args.untie_embeddings_and_output_weights,
             position_embedding_type=args.position_embedding_type,
-            rotary_percent=args.rotary_percent
+            rotary_percent=args.rotary_percent,
         )
 
     return model
