@@ -71,7 +71,7 @@ Setup the environment variables as instructed in `envs/.env`.
 
 # Project Structure
 
-We built an [interactive doc](https://deepwiki.com/JinjieNi/MegaDLMs) with DeepWiki to help you better understand this repo.
+We also built an [interactive doc](https://deepwiki.com/JinjieNi/MegaDLMs) with DeepWiki to help you better understand this repo.
 
 ```
 mega-dlms/
