@@ -5,7 +5,7 @@ MegaDLMs (Preview)
 
 <h4>GPU-optimized framework for training diffusion language models at any scale.</h4>
 
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat)](https://docs.nvidia.com/Megatron-Core/developer-guide/latest/index.html)
+[![Documentation](https://img.shields.io/badge/docs-interactive-brightgreen.svg?style=flat)](https://deepwiki.com/JinjieNi/MegaDLMs)
 [![version](https://img.shields.io/badge/release-0.0.1-green)](./CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-Apache-blue)](./LICENSE)
 
