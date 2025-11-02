@@ -71,7 +71,7 @@ Setup the environment variables as instructed in `envs/.env`.
 
 # Project Structure
 
-MegaDLMs is built upon [Megatron-LM](https://github.com/NVIDIA/Megatron-LM/tree/main). We built an [interactive doc](https://deepwiki.com/JinjieNi/MegaDLMs) with DeepWiki to help you better understand this repo.
+We built an [interactive doc](https://deepwiki.com/JinjieNi/MegaDLMs) with DeepWiki to help you better understand this repo.
 
 ```
 mega-dlms/
