@@ -1,6 +1,6 @@
 <div align="center">
 
-MegaDLMs (Preview)
+MegaDLMs
 ===========================
 
 <h4>GPU-optimized framework for training diffusion language models at any scale.</h4>
