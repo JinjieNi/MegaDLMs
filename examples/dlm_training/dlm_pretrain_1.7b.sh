@@ -49,6 +49,7 @@ TRAINING_TOKENS_PER_EPOCH=10000000000
 EPOCHS=1000
 GLOBAL_BATCH_SIZE=256
 SEQ_LENGTH=2048
+TOKENIZER=$ROOT_DIR/megatron/training/tokenizer/gptneox_tokenizer # or change this to any huggingface tokenizer; local tokenizer is also supported
 
 current_script_dir=$(dirname "$(readlink -f "$0")")
 RUN_ID=$(basename "$(dirname "$0")" | md5sum | head -c 16)
@@ -167,7 +168,7 @@ TRAINING_ARGS=(
     --overlap-param-gather
     --overlap-grad-reduce
     --distributed-timeout-minutes 60
-    # --tp-comm-overlap #todo turn on this when using TP > 1
+    # --tp-comm-overlap #todo turn on this when using TP > 1 and SP > 1
     # --num-layers-per-virtual-pipeline-stage # todo specify this when PP > 1
 )
 
@@ -184,7 +185,7 @@ DATA_ARGS=(
     --valid-data-path $valid_data_prefix
     --data-cache-path $data_local_cache_dir
     --tokenizer-type HuggingFaceTokenizer
-    --tokenizer-model $ROOT_DIR/megatron/training/tokenizer/gptneox_tokenizer
+    --tokenizer-model $TOKENIZER
 )
 
 if [ "$WANDB_MODE" == "" ]; then
