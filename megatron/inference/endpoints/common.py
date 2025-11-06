@@ -1,8 +1,7 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
-import threading
-
 import torch
+import threading
 
 GENERATE_NUM = 0
 BEAM_NUM = 1

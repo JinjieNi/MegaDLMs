@@ -2,10 +2,10 @@
 
 """Model evaluation"""
 
-from tqdm import tqdm
-
-from megatron.training import get_args, print_rank_0
+from megatron.training import get_args
+from megatron.training import print_rank_0
 from tasks.msdp.metrics import F1Metric
+from tqdm import tqdm
 
 
 def evaluate_f1(guess_file, answer_file):
@@ -29,7 +29,8 @@ def evaluate_f1(guess_file, answer_file):
                 line = ""
             answer_list.append(line)
 
-    assert len(guess_list) == len(answer_list), "lengths of guess and answer are different!"
+    assert len(guess_list) == len(answer_list), \
+        "lengths of guess and answer are different!"
 
     precision, recall, f1 = F1Metric.compute_all_pairs(guess_list, answer_list)
     print_rank_0('Precision: %.4f; recall: %.4f; f1: %.4f' % (precision, recall, f1))
@@ -39,5 +40,6 @@ def evaluate_f1(guess_file, answer_file):
 
 def main():
     args = get_args()
-
+    
     evaluate_f1(args.guess_file, args.answer_file)
+

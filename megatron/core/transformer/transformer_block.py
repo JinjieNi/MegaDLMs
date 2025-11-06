@@ -2,11 +2,11 @@
 
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union, Tuple
 
 import torch
-import torch.nn as nn
 from torch import Tensor
+import torch.nn as nn
 from torch.nn import functional as F
 
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
@@ -14,27 +14,23 @@ from megatron.core.dist_checkpointing.mapping import ShardedStateDict
 from megatron.core.dist_checkpointing.utils import replace_prefix_for_sharding
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear
-from megatron.core.transformer.custom_layers.ut_modules import (
-    adacom_layer_forward,
-    depthwise_routing,
-    sut_act_forward,
-    transformer_block_forward,
-    ut_act_forward_original,
-    ut_router_forward,
-)
-from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import (
-    BaseTransformerLayer,
-    DiffLMTransformerLayer,
-    GLRTransformerLayer,
-    TransformerLayer,
-)
-from megatron.core.transformer.utils import PositionalEmbedding, sharded_state_dict_default
+from megatron.core.transformer.transformer_layer import BaseTransformerLayer, TransformerLayer, GLRTransformerLayer, DiffLMTransformerLayer
+from megatron.core.transformer.utils import sharded_state_dict_default, PositionalEmbedding
 from megatron.core.utils import is_te_min_version, make_viewless_tensor
+from megatron.core.transformer.identity_op import IdentityOp
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+
+from megatron.core.transformer.custom_layers.ut_modules import (
+    depthwise_routing,
+    adacom_layer_forward,
+    transformer_block_forward,
+    ut_act_forward_original,
+    sut_act_forward,
+    ut_router_forward
+)
 
 try:
     from megatron.core.extensions.transformer_engine import (
@@ -177,7 +173,8 @@ def _get_block_submodules(
         elif issubclass(spec.module, BaseTransformerLayer):
             num_layers = get_num_layers_to_build(config)
             return TransformerBlockSubmodules(
-                layer_specs=[spec] * num_layers, layer_norm=LayerNormImpl
+                layer_specs=[spec] * num_layers, 
+                layer_norm=LayerNormImpl,
             )
         else:
             raise Exception(f"specialize for {spec.module.__name__}.")
@@ -633,11 +630,8 @@ class TransformerBlock(MegatronModule):
                 )
 
         return sharded_state_dict
-
-
 class GLRTransformerBlock(TransformerBlock):
     """GLRTransformerBlock class."""
-
     # We might need only reason over the middle layers of the transformer, so we create a separate class here
 
     def __init__(
@@ -649,7 +643,7 @@ class GLRTransformerBlock(TransformerBlock):
         post_process: bool = True,
     ):
         super().__init__(
-            config=config,
+            config=config, 
             spec=spec,
             post_layer_norm=post_layer_norm,
             pre_process=pre_process,
@@ -668,7 +662,7 @@ class GLRTransformerBlock(TransformerBlock):
         attention_bias: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
-        latent_forward_params=None,
+        latent_forward_params = None,
     ):
         """
         Perform the forward pass through the transformer block.
@@ -883,10 +877,8 @@ class GLRTransformerBlock(TransformerBlock):
 
         return sharded_state_dict
 
-
 class DiffLMTransformerBlock(TransformerBlock):
     """DiffLMTransformerBlock class."""
-
     # We might need only reason over the middle layers of the transformer, so we create a separate class here
 
     def __init__(
@@ -898,7 +890,7 @@ class DiffLMTransformerBlock(TransformerBlock):
         post_process: bool = True,
     ):
         super().__init__(
-            config=config,
+            config=config, 
             spec=spec,
             post_layer_norm=post_layer_norm,
             pre_process=pre_process,
@@ -917,7 +909,7 @@ class DiffLMTransformerBlock(TransformerBlock):
         attention_bias: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
-        latent_forward_params=None,
+        latent_forward_params = None,
     ):
         """
         Perform the forward pass through the transformer block.

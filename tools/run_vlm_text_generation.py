@@ -14,7 +14,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.
 import numpy as np
 import torch
 from PIL import Image
-from pretrain_vlm import model_provider
 from torchvision.transforms import Compose, Resize, ToPILImage
 
 from megatron.inference.text_generation.api import generate_and_post_process
@@ -22,6 +21,7 @@ from megatron.inference.text_generation.forward_step import ForwardStep
 from megatron.training import get_args, get_model, print_rank_0
 from megatron.training.checkpointing import load_checkpoint
 from megatron.training.initialize import initialize_megatron
+from pretrain_vlm import model_provider
 
 
 def add_text_generation_args(parser):
@@ -187,9 +187,9 @@ class VLMForwardStep(ForwardStep):
         # Update the sequence length offset by the number of image tokens.
         num_tokens = tokens.size(1)
         if num_tokens > 1:
-            self.inference_params.sequence_len_offset += (
-                self.inference_params.key_value_memory_dict["image_tokens_count"]
-            )
+            self.inference_params.sequence_len_offset += self.inference_params.key_value_memory_dict[
+                "image_tokens_count"
+            ]
 
         return logits
 

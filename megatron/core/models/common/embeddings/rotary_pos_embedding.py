@@ -213,7 +213,6 @@ class RotaryEmbedding(nn.Module):
 
         return rotary_seq_len
 
-
 class RotaryEmbedding2D(nn.Module):
     def __init__(
         self,
@@ -236,7 +235,7 @@ class RotaryEmbedding2D(nn.Module):
         device = 'cpu' if use_cpu_initialization else torch.cuda.current_device()
         self.inv_freq = 1.0 / (
             rotary_base ** (torch.arange(0, dim, 2, dtype=torch.float32, device=device) / dim)
-        )  # [dim/2, ]
+        ) # [dim/2, ]
 
         if rope_scaling:
             self.inv_freq = self._apply_scaling(self.inv_freq)
@@ -249,11 +248,11 @@ class RotaryEmbedding2D(nn.Module):
         high_freq_factor=4,
         original_max_position_embeddings=8192,
     ):
-        raise NotImplementedError  # qwen2 vl used the default rope init function.
-
+        raise NotImplementedError # qwen2 vl used the default rope init function.
+    
         # This implementation is adapted from:
         # https://github.com/huggingface/transformers/blob/2a5a6ad18aa22e98429bb5ecb880660328030ea0/src/transformers/modeling_rope_utils.py#L303-L343
-
+        
         factor = factor  # `8` in the original implementation
         low_freq_factor = low_freq_factor  # `1` in the original implementation
         high_freq_factor = high_freq_factor  # `4` in the original implementation
@@ -280,23 +279,15 @@ class RotaryEmbedding2D(nn.Module):
 
     @lru_cache(maxsize=32)
     @torch.no_grad()
-    def forward(self, x, position_ids) -> Tensor:  # position_ids: [2, b, s]
-        inv_freq_expanded = (
-            self.inv_freq[None, None, :, None].float().expand(2, position_ids.shape[1], -1, 1)
-        )  # shape (2, b, h/2, 1)
+    def forward(self, x, position_ids) -> Tensor: # position_ids: [2, b, s]
+        inv_freq_expanded = self.inv_freq[None, None, :, None].float().expand(2, position_ids.shape[1], -1, 1) # shape (2, b, h/2, 1)
         position_ids_expanded = position_ids[:, :, None, :].float()  # shape (2, b, 1, s)
 
         device_type = x.device.type
-        device_type = (
-            device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
-        )
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
         with torch.autocast(device_type=device_type, enabled=False):
-            freqs = (
-                (inv_freq_expanded.float() @ position_ids_expanded.float())
-                .transpose(2, 3)
-                .transpose(1, 2)
-            )  # [2, b, h/2, s] -> [2, b, s, h/2] -> [2, s, b, h/2]
-            emb = torch.cat((freqs, freqs), dim=-1)  # [2, s, b, h]
+            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(2, 3).transpose(1, 2) # [2, b, h/2, s] -> [2, b, s, h/2] -> [2, s, b, h/2]
+            emb = torch.cat((freqs, freqs), dim=-1) # [2, s, b, h]
             cos = emb.cos()
             sin = emb.sin()
 
@@ -345,3 +336,5 @@ class RotaryEmbedding2D(nn.Module):
         rotary_seq_len *= transformer_config.context_parallel_size
 
         return rotary_seq_len
+
+    

@@ -2,8 +2,9 @@
 
 
 import json
-import sys
 import time
+import sys
+
 
 if __name__ == '__main__':
 
@@ -41,19 +42,15 @@ if __name__ == '__main__':
                     fout.write('\n'.encode('utf-8'))
                     written_docs += 1
                     if written_docs % 10000 == 0:
-                        print(
-                            ' [PROCESSED] time (s): {:.2f} | written: {} '
-                            '| removed: {} (char: {})'.format(
-                                time.time() - start_time, written_docs, removed_docs, removed_chars
-                            )
-                        )
+                        print(' [PROCESSED] time (s): {:.2f} | written: {} '
+                              '| removed: {} (char: {})'.format(
+                                  time.time() - start_time,
+                                  written_docs, removed_docs, removed_chars))
                 except Exception as e:
                     print('[SKIPPING]', line, e)
 
-    print(
-        ' [PROCESSED] time (s): {:.2f} | written: {} '
-        '| removed: {} (char: {})'.format(
-            time.time() - start_time, written_docs, removed_docs, removed_chars
-        )
-    )
+    print(' [PROCESSED] time (s): {:.2f} | written: {} '
+          '| removed: {} (char: {})'.format(
+              time.time() - start_time,
+              written_docs, removed_docs, removed_chars))
     print('done :-)')

@@ -1,9 +1,9 @@
 # Copyright (c) 2023, NVIDIA CORPORATION. All rights reserved.
 
-import math
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable
+import math
 
 import torch
 
@@ -12,15 +12,15 @@ from megatron.core.tensor_parallel import gather_from_sequence_parallel_region
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.moe.moe_utils import (
     MoEAuxLossAutoScaler,
-    ec_load_balancing_loss_func,
-    expert_choice_softmax_with_capacity,
-    get_capacity,
     save_to_aux_losses_tracker,
     sequence_load_balancing_loss_func,
     sinkhorn,
     switch_load_balancing_loss_func,
     topk_softmax_with_capacity,
+    expert_choice_softmax_with_capacity,
     z_loss_func,
+    ec_load_balancing_loss_func,
+    get_capacity,
 )
 from megatron.core.transformer.transformer_config import TransformerConfig
 
@@ -162,11 +162,7 @@ class TopKRouter(Router):
             moe_router_topk_limited_devices=self.config.moe_router_topk_limited_devices,
             moe_router_topk_scaling_factor=self.config.moe_router_topk_scaling_factor,
             deterministic_mode=self.config.deterministic_mode,
-            log_tracker=partial(
-                save_to_aux_losses_tracker,
-                layer_number=self.layer_number,
-                num_layers=self.config.num_layers,
-            ),
+            log_tracker=partial(save_to_aux_losses_tracker, layer_number=self.layer_number, num_layers=self.config.num_layers),
         )
 
         if self.training:
@@ -283,6 +279,7 @@ class TopKRouter(Router):
         else:
             return input
 
+    
     def routing(self, logits: torch.Tensor):
         """Top-k routing function
 
@@ -359,19 +356,11 @@ class ExpertChoiceRouter(Router):
         self.routing_type = self.config.moe_router_load_balancing_type
         self.input_jitter = None
         self.topk = self.config.moe_router_topk
-
+        
         if self.config.shared_experts_with_logits:
             # Add the shared experts weights to the router to be applied later
             self.weight = torch.nn.Parameter(
-                torch.empty(
-                    (
-                        self.config.num_moe_experts
-                        + self.config.moe_shared_expert_intermediate_size
-                        // self.config.moe_ffn_hidden_size,
-                        self.config.hidden_size,
-                    ),
-                    dtype=torch.float32,
-                )
+            torch.empty((self.config.num_moe_experts + self.config.moe_shared_expert_intermediate_size // self.config.moe_ffn_hidden_size, self.config.hidden_size), dtype=torch.float32)
             )
             if config.perform_initialization:
                 config.init_method(self.weight)
@@ -446,10 +435,9 @@ class ExpertChoiceRouter(Router):
         else:
             return input
 
-    def apply_softmax_expert_choice_load_balancing(
-        self, logits: torch.Tensor, bsz: int, seq_length: int
-    ):
-        """Apply softmax-based expert choice to the logits tensor."""
+    def apply_softmax_expert_choice_load_balancing(self, logits: torch.Tensor, bsz: int, seq_length: int):
+        """Apply softmax-based expert choice to the logits tensor.
+        """
         probs, routing_map, experts_per_token = expert_choice_softmax_with_capacity(
             self.config,
             logits,
@@ -462,7 +450,7 @@ class ExpertChoiceRouter(Router):
             moe_router_topk_scaling_factor=self.config.moe_router_topk_scaling_factor,
             deterministic_mode=self.config.deterministic_mode,
         )
-
+        
         if self.training:
             scores = torch.softmax(logits, dim=0, dtype=torch.float32)
             aux_loss_func = partial(
@@ -476,13 +464,12 @@ class ExpertChoiceRouter(Router):
             )
 
         return probs, routing_map
-
-    def apply_sinkhorn_expert_choice_load_balancing(
-        self, logits: torch.Tensor, bsz: int, seq_length: int
-    ):
-        """Apply sinkhorn-based expert choice to the logits tensor."""
+    
+    def apply_sinkhorn_expert_choice_load_balancing(self, logits: torch.Tensor, bsz: int, seq_length: int):
+        """Apply sinkhorn-based expert choice to the logits tensor.
+        """
         raise NotImplementedError("Sinkhorn-based expert choice is not supported yet.")
-
+    
     def routing(self, logits: torch.Tensor):
         """Top-k routing function
 
@@ -495,15 +482,10 @@ class ExpertChoiceRouter(Router):
                 with shape [num_tokens, num_experts].
         """
         seq_length, bsz = logits.shape[:2]
-        if (
-            self.config.moe_shared_expert_intermediate_size is None
-            or not self.config.shared_experts_with_logits
-        ):
+        if self.config.moe_shared_expert_intermediate_size is None or not self.config.shared_experts_with_logits:
             logits = logits.view(-1, self.config.num_moe_experts)
         else:
-            num_shared_experts = (
-                self.config.moe_shared_expert_intermediate_size // self.config.moe_ffn_hidden_size
-            )
+            num_shared_experts = self.config.moe_shared_expert_intermediate_size // self.config.moe_ffn_hidden_size
             logits = logits.view(-1, self.config.num_moe_experts + num_shared_experts)
 
         # Apply Z-Loss
@@ -514,13 +496,9 @@ class ExpertChoiceRouter(Router):
             logits = gather_from_sequence_parallel_region(logits)
 
         if self.routing_type == "softmax_expert_choice":
-            scores, routing_map = self.apply_softmax_expert_choice_load_balancing(
-                logits, bsz, seq_length
-            )
+            scores, routing_map = self.apply_softmax_expert_choice_load_balancing(logits, bsz, seq_length)
         elif self.routing_type == "sinkhorn_expert_choice":
-            scores, routing_map = self.apply_sinkhorn_expert_choice_load_balancing(
-                logits, bsz, seq_length
-            )
+            scores, routing_map = self.apply_sinkhorn_expert_choice_load_balancing(logits, bsz, seq_length)
         else:
             raise ValueError(f"Unsupported MoE routing type: {self.routing_type}")
 
@@ -538,40 +516,25 @@ class ExpertChoiceRouter(Router):
         input = self.apply_input_jitter(input)
         logits = self.gating(input)
         scores, routing_map = self.routing(logits)
-
+        
         save_to_aux_losses_tracker(
-            "ec_token_drop_ratio",
-            (routing_map.sum(1) == 0).int().sum() / routing_map.shape[0],
-            self.layer_number,
-            self.config.num_layers,
+            "ec_token_drop_ratio", (routing_map.sum(1) == 0).int().sum() / routing_map.shape[0], self.layer_number, self.config.num_layers
         )
-
+        
         experts_per_token = routing_map.sum(1).float()
         save_to_aux_losses_tracker(
-            "ec_experts_per_token_mean",
-            experts_per_token.mean(),
-            self.layer_number,
-            self.config.num_layers,
+            "ec_experts_per_token_mean", experts_per_token.mean(), self.layer_number, self.config.num_layers
         )
         save_to_aux_losses_tracker(
-            "ec_experts_per_token_min",
-            experts_per_token.min(),
-            self.layer_number,
-            self.config.num_layers,
+            "ec_experts_per_token_min", experts_per_token.min(), self.layer_number, self.config.num_layers
         )
         save_to_aux_losses_tracker(
-            "ec_experts_per_token_max",
-            experts_per_token.max(),
-            self.layer_number,
-            self.config.num_layers,
+            "ec_experts_per_token_max", experts_per_token.max(), self.layer_number, self.config.num_layers
         )
         save_to_aux_losses_tracker(
-            "ec_experts_per_token_std",
-            experts_per_token.std(),
-            self.layer_number,
-            self.config.num_layers,
+            "ec_experts_per_token_std", experts_per_token.std(), self.layer_number, self.config.num_layers
         )
-
+        
         # print(routing_map.shape)
         # print(routing_map.sum(0))
         # print(routing_map.sum(1))

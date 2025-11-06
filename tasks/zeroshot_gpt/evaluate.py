@@ -6,13 +6,16 @@ import math
 
 import torch
 
+from megatron.training import get_args
+from megatron.training import print_rank_0, is_last_rank
+from megatron.training import get_tokenizer
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.pipeline_parallel.p2p_communication import recv_forward, send_forward
-from megatron.legacy.model import GPTModel
-from megatron.training import get_args, get_model, get_tokenizer, is_last_rank, print_rank_0
-from megatron.training.arguments import core_transformer_config_from_args
 from megatron.training.checkpointing import load_checkpoint
+from megatron.legacy.model import GPTModel
+from megatron.training import get_model
 from megatron.training.utils import get_ltor_masks_and_position_ids, unwrap_model
+from megatron.core.pipeline_parallel.p2p_communication import recv_forward, send_forward
+from megatron.training.arguments import core_transformer_config_from_args
 from tasks.finetune_utils import build_data_loader
 
 from .datasets import build_dataset
@@ -32,18 +35,12 @@ def get_model_provider(eval_metric):
         elif eval_metric == 'accuracy':
             parallel_output = False
         else:
-            raise NotImplementedError(
-                'output type for {} evaluation metric ' 'is not supported.'.format(eval_metric)
-            )
+            raise NotImplementedError('output type for {} evaluation metric '
+                                      'is not supported.'.format(eval_metric))
 
         print_rank_0('building GPT model ...')
-        model = GPTModel(
-            config,
-            num_tokentypes=0,
-            parallel_output=parallel_output,
-            pre_process=pre_process,
-            post_process=post_process,
-        )
+        model = GPTModel(config, num_tokentypes=0, parallel_output=parallel_output,
+                         pre_process=pre_process, post_process=post_process)
 
         return model
 
@@ -66,8 +63,7 @@ def process_batch(batch):
         tokenizer.eod,
         args.reset_position_ids,
         args.reset_attention_mask,
-        args.eod_mask_loss,
-    )
+        args.eod_mask_loss)
 
     return tokens, labels, attention_mask, position_ids, loss_mask
 
@@ -76,7 +72,8 @@ def forward_step(batch, model, eval_metric, config):
     """Forward step."""
 
     # Get the batch.
-    tokens, labels, attention_mask, position_ids, loss_mask = process_batch(batch)
+    tokens, labels, attention_mask, position_ids, loss_mask = process_batch(
+        batch)
 
     # Tell the model what our actual batch size will be
     args = get_args()
@@ -96,9 +93,9 @@ def forward_step(batch, model, eval_metric, config):
         # For loss, return the unreduced loss.
         if eval_metric == 'loss':
             losses = tensor_parallel.vocab_parallel_cross_entropy(
-                output.contiguous().float(), labels.contiguous()
-            )
-            loss = torch.sum(losses.view(-1) * loss_mask.contiguous().view(-1).float())
+                output.contiguous().float(), labels.contiguous())
+            loss = torch.sum(
+                losses.view(-1) * loss_mask.contiguous().view(-1).float())
             return loss
 
         # For accuracy, return the number of correctly predicted samples.
@@ -109,9 +106,8 @@ def forward_step(batch, model, eval_metric, config):
             correct = correct.prod(-1)
             return correct.sum()
 
-        raise NotImplementedError(
-            'forward method for evaluation metric {} ' 'is not implemented.'.format(eval_metric)
-        )
+        raise NotImplementedError('forward method for evaluation metric {} '
+                                  'is not implemented.'.format(eval_metric))
     return None
 
 
@@ -119,7 +115,7 @@ def evaluate(data_loader, model, eval_metric):
     """Evaluation."""
     args = get_args()
     config = core_transformer_config_from_args(args)
-
+    
     # Turn on evaluation mode which disables dropout.
     model.eval()
 
@@ -134,7 +130,8 @@ def evaluate(data_loader, model, eval_metric):
 
             # Reduce across processes.
             if parallel_state.is_pipeline_last_stage():
-                torch.distributed.all_reduce(output, group=parallel_state.get_data_parallel_group())
+                torch.distributed.all_reduce(output,
+                                             group=parallel_state.get_data_parallel_group())
 
                 total_output += output
 
@@ -169,9 +166,8 @@ def evaluate_and_print_results(task, data_loader, model, eval_metric):
             string += 'avg accuracy: {:.4E}'.format(acc)
 
         else:
-            raise NotImplementedError(
-                'evaluation method for {} metric is not ' 'implemented yet.'.format(eval_metric)
-            )
+            raise NotImplementedError('evaluation method for {} metric is not '
+                                      'implemented yet.'.format(eval_metric))
 
         length = len(string) + 1
         print('-' * length)
@@ -192,7 +188,8 @@ def main():
     elif args.task == 'WIKITEXT103':
         eval_metric = 'loss'
     else:
-        raise NotImplementedError('{} task is not implemented.'.format(args.task))
+        raise NotImplementedError('{} task is not implemented.'.format(
+            args.task))
 
     # Set up model and load checkpoint.
     model = get_model(get_model_provider(eval_metric), wrap_with_ddp=False)
@@ -204,9 +201,8 @@ def main():
 
     # Data stuff.
     dataset = build_dataset(args.task)
-    dataloader = build_data_loader(
-        dataset, args.micro_batch_size, args.num_workers, drop_last=False
-    )
+    dataloader = build_data_loader(dataset, args.micro_batch_size,
+                                   args.num_workers, drop_last=False)
 
     # Run evaluation.
     evaluate_and_print_results(args.task, dataloader, model, eval_metric)

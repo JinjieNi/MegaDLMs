@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: UTF-8 -*-
-# copyright (c) go-hiroaki & Chokurei
-# email: guangmingwu2010@gmail.com
+#copyright (c) go-hiroaki & Chokurei
+#email: guangmingwu2010@gmail.com 
 #       guozhilingty@gmail.com
 #
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 import math
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 eps = 1e-6
-
 
 def _binarize(y_data, threshold):
     """
@@ -26,7 +24,6 @@ def _binarize(y_data, threshold):
     y_data[y_data < threshold] = 0.0
     y_data[y_data >= threshold] = 1.0
     return y_data
-
 
 def _argmax(y_data, dim):
     """
@@ -82,12 +79,12 @@ def _get_weights(y_true, nb_ch):
     """
     args:
         y_true : 3-d ndarray in [batch_size, img_rows, img_cols]
-        nb_ch : int
+        nb_ch : int 
     return [float] weights
     """
     batch_size, img_rows, img_cols = y_true.shape
     pixels = batch_size * img_rows * img_cols
-    weights = [torch.sum(y_true == ch).item() / pixels for ch in range(nb_ch)]
+    weights = [torch.sum(y_true==ch).item() / pixels for ch in range(nb_ch)]
     return weights
 
 
@@ -99,6 +96,7 @@ class CFMatrix(object):
         return "ConfusionMatrix"
 
     def __call__(self, y_pred, y_true, ignore_index, threshold=0.5):
+
         """
         args:
             y_true : 3-d ndarray in [batch_size, img_rows, img_cols]
@@ -133,7 +131,7 @@ class CFMatrix(object):
                 nb_tn = torch.sum(y_false_ch * (1 - y_pred_ch)).float()
                 nb_fn = _get_fn(y_pred_ch, y_true_ch)
                 performs[int(ch), :] = torch.FloatTensor([nb_tp, nb_fp, nb_tn, nb_fn])
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -204,7 +202,7 @@ class Precision(object):
                 nb_tp = _get_tp(y_pred_ch, y_true_ch)
                 nb_fp = _get_fp(y_pred_ch, y_true_ch)
                 performs[int(ch)] = nb_tp / (nb_tp + nb_fp + esp)
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -245,7 +243,7 @@ class Recall(object):
                 nb_tp = _get_tp(y_pred_ch, y_true_ch)
                 nb_fn = _get_fn(y_pred_ch, y_true_ch)
                 performs[int(ch)] = nb_tp / (nb_tp + nb_fn + esp)
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -257,6 +255,7 @@ class F1Score(object):
         return "F1Sc"
 
     def __call__(self, y_pred, y_true, threshold=0.5):
+
         """
         args:
             y_true : 4-d ndarray in [batch_size, chs, img_rows, img_cols]
@@ -291,8 +290,9 @@ class F1Score(object):
                 nb_fn = _get_fn(y_pred_ch, y_true_ch)
                 _precision = nb_tp / (nb_tp + nb_fp + esp)
                 _recall = nb_tp / (nb_tp + nb_fn + esp)
-                performs[int(ch)] = 2 * _precision * _recall / (_precision + _recall + esp)
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+                performs[int(ch)] = 2 * _precision * \
+                    _recall / (_precision + _recall + esp)
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -304,6 +304,7 @@ class Kappa(object):
         return "Kapp"
 
     def __call__(self, y_pred, y_true, threshold=0.5):
+
         """
         args:
             y_true : 4-d ndarray in [batch_size, chs, img_rows, img_cols]
@@ -322,9 +323,8 @@ class Kappa(object):
             nb_fn = _get_fn(y_pred, y_true)
             nb_total = nb_tp + nb_fp + nb_tn + nb_fn
             Po = (nb_tp + nb_tn) / nb_total
-            Pe = ((nb_tp + nb_fp) * (nb_tp + nb_fn) + (nb_fn + nb_tn) * (nb_fp + nb_tn)) / (
-                nb_total**2
-            )
+            Pe = ((nb_tp + nb_fp) * (nb_tp + nb_fn) +
+                  (nb_fn + nb_tn) * (nb_fp + nb_tn)) / (nb_total**2)
             mperforms = (Po - Pe) / (1 - Pe + esp)
             performs = None
         else:
@@ -343,11 +343,10 @@ class Kappa(object):
                 nb_fn = _get_fn(y_pred_ch, y_true_ch)
                 nb_total = nb_tp + nb_fp + nb_tn + nb_fn
                 Po = (nb_tp + nb_tn) / nb_total
-                Pe = ((nb_tp + nb_fp) * (nb_tp + nb_fn) + (nb_fn + nb_tn) * (nb_fp + nb_tn)) / (
-                    nb_total**2
-                )
+                Pe = ((nb_tp + nb_fp) * (nb_tp + nb_fn)
+                      + (nb_fn + nb_tn) * (nb_fp + nb_tn)) / (nb_total**2)
                 performs[int(ch)] = (Po - Pe) / (1 - Pe + esp)
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -388,7 +387,7 @@ class Jaccard(object):
                 _intersec = torch.sum(y_true_ch * y_pred_ch).float()
                 _sum = torch.sum(y_true_ch + y_pred_ch).float()
                 performs[int(ch)] = _intersec / (_sum - _intersec + esp)
-            mperforms = sum([i * j for (i, j) in zip(performs, weights)])
+            mperforms = sum([i*j for (i, j) in zip(performs, weights)])
         return mperforms, performs
 
 
@@ -437,7 +436,6 @@ class SSIM(object):
     '''
     modified from https://github.com/jorge-pessoa/pytorch-msssim
     '''
-
     def __init__(self, des="structural similarity index"):
         self.des = des
 
@@ -445,10 +443,8 @@ class SSIM(object):
         return "SSIM"
 
     def gaussian(self, w_size, sigma):
-        gauss = torch.Tensor(
-            [math.exp(-((x - w_size // 2) ** 2) / float(2 * sigma**2)) for x in range(w_size)]
-        )
-        return gauss / gauss.sum()
+        gauss = torch.Tensor([math.exp(-(x - w_size//2)**2/float(2*sigma**2)) for x in range(w_size)])
+        return gauss/gauss.sum()
 
     def create_window(self, w_size, channel=1):
         _1D_window = self.gaussian(w_size, 1.5).unsqueeze(1)
@@ -518,13 +514,12 @@ class AE(object):
     angle = acos(RGB1' * RGB2 / (norm(RGB1) * norm(RGB2)));
     angle = 180 / pi * angle;
     """
-
     def __init__(self, des='average Angular Error'):
         self.des = des
 
     def __repr__(self):
         return "AE"
-
+    
     def __call__(self, y_pred, y_true):
         """
         args:
@@ -550,7 +545,7 @@ if __name__ == "__main__":
                 y_pred = y_pred.cuda()
                 y_true = y_true.cuda()
 
-            print('#' * 20, 'Cuda : {} ; size : {}'.format(cuda, y_true.size()))
+            print('#'*20, 'Cuda : {} ; size : {}'.format(cuda, y_true.size()))
             ########### similarity metrics
             metric = MSE()
             acc = metric(y_pred, y_true).item()
@@ -563,15 +558,15 @@ if __name__ == "__main__":
             metric = SSIM()
             acc = metric(y_pred, y_true).item()
             print("{} ==> {}".format(repr(metric), acc))
-
+                  
             metric = LPIPS(cuda)
             acc = metric(y_pred, y_true).item()
             print("{} ==> {}".format(repr(metric), acc))
-
+            
             metric = AE()
             acc = metric(y_pred, y_true).item()
             print("{} ==> {}".format(repr(metric), acc))
-
+            
             ########### accuracy metrics
             metric = OAAcc()
             maccu, accu = metric(y_pred, y_true)
@@ -596,3 +591,4 @@ if __name__ == "__main__":
             metric = Jaccard()
             mjacc, jacc = metric(y_pred, y_true)
             print('mJacc:', mjacc, 'Jacc', jacc)
+

@@ -1,10 +1,12 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 import json
-import sys
 import time
+import sys
+
 
 if __name__ == '__main__':
+
 
     print('grouping duplicate urls ...')
 
@@ -51,29 +53,25 @@ if __name__ == '__main__':
                 index_to_urls[index] = None
 
             if counter % 100000 == 0:
-                print(
-                    ' > processed {} lines in {} seconds ...'.format(
-                        counter, time.time() - start_time
-                    )
-                )
+                print(' > processed {} lines in {} seconds ...'.format(
+                    counter, time.time() - start_time))
+
 
     total_remove = 0
     total_remain = 0
     for urls in index_to_urls:
         if urls is not None:
             if len(urls) > 1:
-                total_remove += len(urls) - 1
+                total_remove += (len(urls) - 1)
                 total_remain += 1
-    print(
-        'out of {} urls, only {} are unique and {} should be removed'.format(
-            total_remove + total_remain, total_remain, total_remove
-        )
-    )
+    print('out of {} urls, only {} are unique and {} should be removed'.format(
+        total_remove+total_remain, total_remain, total_remove))
 
     with open(output, 'wb') as f:
         for i, urls in enumerate(index_to_urls):
             if urls is not None:
                 if len(urls) > 1:
-                    myjson = json.dumps({str(i): list(urls)}, ensure_ascii=False)
+                    myjson = json.dumps({str(i): list(urls)},
+                                        ensure_ascii=False)
                     f.write(myjson.encode('utf-8'))
                     f.write('\n'.encode('utf-8'))

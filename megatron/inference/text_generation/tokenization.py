@@ -5,13 +5,15 @@
 
 import torch
 
+
 from megatron.core import parallel_state
 from megatron.training import get_args, get_tokenizer
-
 from .communication import broadcast_int_list, broadcast_tensor
 
 
-def detokenize_generations(tokens_gpu_tensor, lengths_gpu_tensor, detokenize_segments):
+def detokenize_generations(tokens_gpu_tensor,
+                           lengths_gpu_tensor,
+                           detokenize_segments):
     """Detokenize the generated tokens."""
 
     tokenizer = get_tokenizer()
@@ -45,9 +47,8 @@ def detokenize_generations(tokens_gpu_tensor, lengths_gpu_tensor, detokenize_seg
     return tokens, prompts_plus_generations, prompts_plus_generations_segments
 
 
-def tokenize_prompts(
-    prompts=None, tokens_to_generate=None, add_BOS=None, rank=0, data_parallel=False
-):
+def tokenize_prompts(prompts=None, tokens_to_generate=None,
+                     add_BOS=None, rank=0, data_parallel=False):
     """Tokenize prompts and make them avaiable on all ranks.
 
     Args:
@@ -68,48 +69,34 @@ def tokenize_prompts(
         assert prompts is not None
         assert tokens_to_generate is not None
         # Tensor of tokens padded and their unpadded length.
-        prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor = (
+        prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor = \
             _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS)
-        )
         # We need the sizes of these tensors for the boradcast
-        sizes_list = [
-            prompts_tokens_cuda_long_tensor.size(0),  # Batch size
-            prompts_tokens_cuda_long_tensor.size(1),
-        ]  # Sequence lenght
+        sizes_list = [prompts_tokens_cuda_long_tensor.size(0), # Batch size
+                      prompts_tokens_cuda_long_tensor.size(1)] # Sequence lenght
 
     # First, broadcast the sizes.
-    sizes_tensor = broadcast_int_list(
-        2, int_list=sizes_list, rank=rank, data_parallel=data_parallel
-    )
+    sizes_tensor = broadcast_int_list(2, int_list=sizes_list, rank=rank, data_parallel=data_parallel)
 
     # Now that we have the sizes, we can boradcast the tokens
     # and length tensors.
     sizes = sizes_tensor.tolist()
     prompts_tokens_cuda_long_tensor = broadcast_tensor(
-        sizes,
-        torch.int64,
-        tensor=prompts_tokens_cuda_long_tensor,
-        rank=rank,
-        data_parallel=data_parallel,
-    )
+        sizes, torch.int64, tensor=prompts_tokens_cuda_long_tensor, rank=rank, data_parallel=data_parallel)
     prompts_length_cuda_long_tensor = broadcast_tensor(
-        sizes[0],
-        torch.int64,
-        tensor=prompts_length_cuda_long_tensor,
-        rank=rank,
-        data_parallel=data_parallel,
-    )
+        sizes[0], torch.int64, tensor=prompts_length_cuda_long_tensor,
+        rank=rank, data_parallel=data_parallel)
 
     return prompts_tokens_cuda_long_tensor, prompts_length_cuda_long_tensor
 
 
 def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
     """Given a set of prompts and number of tokens to generate:
-    - tokenize prompts
-    - set the sequence length to be the max of length of prompts
-      plus the number of tokens we would like to generate
-    - pad all the sequences to this length so we can convert them
-      into a 2D tensor.
+        - tokenize prompts
+        - set the sequence length to be the max of length of prompts
+          plus the number of tokens we would like to generate
+        - pad all the sequences to this length so we can convert them
+          into a 2D tensor.
     """
 
     # Tokenize all the prompts.
@@ -121,7 +108,8 @@ def _tokenize_prompts_and_batch(prompts, tokens_to_generate, add_BOS):
     else:
         raise AttributeError('No eod token found in Tokenizer')
     if add_BOS:
-        prompts_tokens = [[eod_token] + tokenizer.tokenize(prompt) for prompt in prompts]
+        prompts_tokens = [[eod_token] + tokenizer.tokenize(prompt)
+                          for prompt in prompts]
     else:
         prompts_tokens = [tokenizer.tokenize(prompt) for prompt in prompts]
 

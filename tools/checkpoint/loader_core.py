@@ -3,9 +3,9 @@
 import json
 import os
 import sys
+import torch
 import types
 
-import torch
 from schema_core import get_model_schema
 from utils import print_memory_usage
 
@@ -13,104 +13,83 @@ from utils import print_memory_usage
 def add_arguments(parser):
     group = parser.add_argument_group(title='Megatron loader')
 
-    group.add_argument(
-        '--true-vocab-size',
-        type=int,
-        default=None,
-        help='original size of vocab, if specified will trim padding from embedding table.',
-    )
-    group.add_argument(
-        '--vocab-file',
-        type=str,
-        default=None,
-        help='Path to the vocab file. If specified will use this to get vocab size and '
-        'trim padding from the embedding table.',
-    )
-    group.add_argument(
-        '--megatron-path', type=str, default=None, help='Base directory of Megatron repository'
-    )
-    group.add_argument(
-        '--position-embedding-type',
-        type=str,
-        default='learned_absolute',
-        choices=['learned_absolute', 'rope'],
-        help='Position embedding type.',
-    )
-    group.add_argument(
-        '--loader-transformer-impl',
-        default='transformer_engine',
-        choices=['local', 'transformer_engine'],
-        help='Which Transformer implementation to use.',
-    )
-    group.add_argument('--bf16', action='store_true', help='Whether to use bf16.')
+    group.add_argument('--true-vocab-size', type=int, default=None,
+                       help='original size of vocab, if specified will trim padding from embedding table.')
+    group.add_argument('--vocab-file', type=str, default=None,
+                       help='Path to the vocab file. If specified will use this to get vocab size and '
+                       'trim padding from the embedding table.')
+    group.add_argument('--megatron-path', type=str, default=None,
+                       help='Base directory of Megatron repository')
+    group.add_argument('--position-embedding-type',
+                       type=str,
+                       default='learned_absolute',
+                       choices=['learned_absolute', 'rope'],
+                       help='Position embedding type.')
+    group.add_argument('--loader-transformer-impl', default='transformer_engine',
+                       choices=['local', 'transformer_engine'],
+                       help='Which Transformer implementation to use.')
+    group.add_argument('--bf16', action='store_true',
+                       help='Whether to use bf16.')
 
 
 def _load_checkpoint(queue, args):
 
     # Search in directory above this
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
+    sys.path.append(os.path.abspath(
+        os.path.join(os.path.dirname(__file__),
+                     os.path.pardir)))
     if args.megatron_path is not None:
         sys.path.insert(0, args.megatron_path)
 
     try:
+        from megatron.training.arguments import parse_args, validate_args
+        from megatron.training.global_vars import set_args, set_global_variables
+        from megatron.training.checkpointing import load_args_from_checkpoint, load_checkpoint
+        from megatron.legacy.model import module
         from megatron.core import mpu
         from megatron.core.enums import ModelType
         from megatron.legacy import fused_kernels
-        from megatron.legacy.model import module
-        from megatron.training.arguments import parse_args, validate_args
-        from megatron.training.checkpointing import load_args_from_checkpoint, load_checkpoint
-        from megatron.training.global_vars import set_args, set_global_variables
     except ModuleNotFoundError:
-        print(
-            "Unable to import Megatron, please specify the path to Megatron using --megatron-path. Exiting."
-        )
+        print("Unable to import Megatron, please specify the path to Megatron using --megatron-path. Exiting.")
         queue.put("exit")
         exit(1)
 
     # We want all arguments to come from us
-    sys.argv = [
-        'script.py',
-        '--no-masked-softmax-fusion',
-        '--no-bias-gelu-fusion',
-        '--no-bias-dropout-fusion',
-        '--no-async-tensor-model-parallel-allreduce',
-        '--use-cpu-initialization',
-        '--micro-batch-size',
-        '1',
-        '--no-load-optim',
-        '--no-load-rng',
-        '--no-save-optim',
-        '--no-save-rng',
-        '--no-initialization',
-        '--mock-data',  # To pass the "blend data checks" in arguments.py
-        '--load',
-        args.load_dir,
-        '--position-embedding-type',
-        args.position_embedding_type,
-        '--exit-on-missing-checkpoint',
-        '--no-one-logger',
-        '--use-mp-args-from-checkpoint-args',
-    ]
+    sys.argv = ['script.py',
+                '--no-masked-softmax-fusion',
+                '--no-bias-gelu-fusion',
+                '--no-bias-dropout-fusion',
+                '--no-async-tensor-model-parallel-allreduce',
+                '--use-cpu-initialization',
+                '--micro-batch-size', '1',
+                '--no-load-optim',
+                '--no-load-rng',
+                '--no-save-optim',
+                '--no-save-rng',
+                '--no-initialization',
+                '--mock-data', # To pass the "blend data checks" in arguments.py
+                '--load', args.load_dir,
+                '--position-embedding-type', args.position_embedding_type,
+                '--exit-on-missing-checkpoint',
+                '--no-one-logger',
+                '--use-mp-args-from-checkpoint-args'
+                ]
     # Determine how to make our models
     if args.model_type == 'GPT':
         from pretrain_gpt import model_provider
-
         margs = parse_args()
     elif args.model_type == 'BERT':
         from pretrain_bert import model_provider
-
         margs = parse_args()
     elif args.model_type == 'GLR-plmt' or args.model_type == 'GLR-plmt-lnwp':
-        from pretrain_plmt import extra_args_provider, model_provider
-
+        from pretrain_plmt import model_provider, extra_args_provider
         margs = parse_args(extra_args_provider=extra_args_provider)
         margs.model_running_mode = args.model_running_mode
         margs.base_model = args.base_model
         margs.embedding_hidden_fusion_type = args.embedding_hidden_fusion_type
         margs.use_embedding_hidden_weight_fusion_bias = args.use_embedding_hidden_weight_fusion_bias
     elif args.model_type == "difflm" or args.model_type == "difflm-conditional":
-        from pretrain_difflm import extra_args_provider, model_provider
-
+        from pretrain_difflm import model_provider, extra_args_provider
         margs = parse_args(extra_args_provider=extra_args_provider)
         margs.model_running_mode = args.model_running_mode
         margs.base_model = args.base_model
@@ -118,7 +97,8 @@ def _load_checkpoint(queue, args):
         margs.difflm_use_time_embedding = args.difflm_use_time_embedding
     else:
         raise Exception(f'unrecognized model type: {args.model_type}')
-
+    
+    
     margs, checkpoint_args = load_args_from_checkpoint(margs)
 
     # Arguments do sanity checks on the world size, but we don't care,
@@ -128,7 +108,7 @@ def _load_checkpoint(queue, args):
     # Explicitly copy data types from checkpoint.
     margs.fp16 = checkpoint_args.fp16 if "fp16" in checkpoint_args else False
     margs.bf16 = checkpoint_args.bf16 if "bf16" in checkpoint_args else args.bf16
-
+    
     margs.seq_length = checkpoint_args.max_position_embeddings
     margs.attention_softmax_in_fp32 = True
 
@@ -177,7 +157,6 @@ def _load_checkpoint(queue, args):
 
     consumed_train_samples = None
     consumed_valid_samples = None
-
     def get_models(count, dtype):
         nonlocal consumed_train_samples
         nonlocal consumed_valid_samples
@@ -197,7 +176,8 @@ def _load_checkpoint(queue, args):
                     pre_process = mpu.is_pipeline_first_stage()
                     post_process = mpu.is_pipeline_last_stage()
                     this_model = model_provider(
-                        pre_process=pre_process, post_process=post_process
+                        pre_process=pre_process,
+                        post_process=post_process
                     ).to(dtype)
                     model_.append(this_model)
             else:
@@ -211,11 +191,11 @@ def _load_checkpoint(queue, args):
             load_checkpoint(model_, None, None)
 
             if consumed_train_samples is not None:
-                assert margs.consumed_train_samples == consumed_train_samples
+                assert(margs.consumed_train_samples == consumed_train_samples)
             else:
                 consumed_train_samples = margs.consumed_train_samples
             if consumed_valid_samples is not None:
-                assert margs.consumed_valid_samples == consumed_valid_samples
+                assert(margs.consumed_valid_samples == consumed_valid_samples)
             else:
                 consumed_valid_samples = margs.consumed_valid_samples
             for vp_rank in range(model_array_len):
@@ -240,9 +220,7 @@ def _load_checkpoint(queue, args):
         vocab = json.load(open(args.vocab_file))
         true_vocab_size = len(vocab)
         if args.true_vocab_size is not None and true_vocab_size != args.true_vocab_size:
-            print(
-                "Both --true-vocab-size and --vocab-file specified and the vocab size does not match, aborting."
-            )
+            print("Both --true-vocab-size and --vocab-file specified and the vocab size does not match, aborting.")
             queue.put("exit")
             exit(1)
     else:
@@ -295,7 +273,7 @@ def _load_checkpoint(queue, args):
 
     md.consumed_train_samples = consumed_train_samples
     md.consumed_valid_samples = consumed_valid_samples
-
+    
     if md.model_type == 'GLR-plmt' or md.model_type == 'GLR-plmt-lnwp':
         if margs.embedding_hidden_fusion_type == 'weight_fusion':
             md.embedding_hidden_fusion_type = 'weight_fusion'
@@ -311,17 +289,17 @@ def _load_checkpoint(queue, args):
 
     # Model schema.
     schema = get_model_schema(
-        (
-            md.model_type if md.model_type in ['GPT', 'BERT'] else 'GPT'
-        ),  # default to GPT for custom model types
+        md.model_type if md.model_type in ['GPT', 'BERT'] else 'GPT',  # default to GPT for custom model types
         margs.transformer_impl,
         margs.num_experts,
         margs.expert_model_parallel_size,
     )
 
     # Send embeddings.
-    embeddings = [schema.get("embeddings", model) for model in models]
-    message = {"word embeddings": torch.cat([e["word"] for e in embeddings], dim=0)}
+    embeddings = [ schema.get("embeddings", model) for model in models ]
+    message = {
+        "word embeddings": torch.cat([ e["word"] for e in embeddings ], dim=0)
+    }
     if md.position_embedding_type == 'learned_absolute':
         message["position embeddings"] = embeddings[0]["pos"]
     else:
@@ -351,7 +329,7 @@ def _load_checkpoint(queue, args):
                 if md.linear_bias:
                     message["dense bias"] = layer["self_attn_proj_bias"]
                     message["mlp l1 bias"] = layer["mlp_fc2_bias"]
-
+                    
                 # qk norm
                 if md.qk_layernorm:
                     message["q norm weight"] = layer["q_norm_weight"]
@@ -398,8 +376,8 @@ def _load_checkpoint(queue, args):
                     if md.swiglu:
                         for tp_rank in range(tp_size):
                             mlp_l0_bias[tp_rank] = torch.chunk(mlp_l0_bias[tp_rank], 2, dim=0)
-                        message["mlp l0 bias W"] = torch.cat([b[0] for b in mlp_l0_bias], dim=0)
-                        message["mlp l0 bias V"] = torch.cat([b[1] for b in mlp_l0_bias], dim=0)
+                        message["mlp l0 bias W"] = torch.cat([b[0] for b in mlp_l0_bias],dim=0)
+                        message["mlp l0 bias V"] = torch.cat([b[1] for b in mlp_l0_bias],dim=0)
                     else:
                         message["mlp l0 bias"] = torch.cat(mlp_l0_bias, dim=0)
 
@@ -409,15 +387,19 @@ def _load_checkpoint(queue, args):
 
     # Send final norm from tp_rank 0.
     final_norm = schema.get("final_norm", models[0])
-    message = {"weight": final_norm["weight"]}
+    message = {
+        "weight": final_norm["weight"],
+    }
     if norm_has_bias:
         message["bias"] = final_norm["bias"]
     queue_put("final norm", message)
 
     # Send output layer.
     if md.output_layer:
-        output_layer_ranks = [schema.get("output_layer", m) for m in models]
-        message = {"weight": torch.cat([r["weight"] for r in output_layer_ranks], dim=0)}
+        output_layer_ranks = [ schema.get("output_layer", m) for m in models ]
+        message = {
+            "weight": torch.cat([r["weight"] for r in output_layer_ranks], dim=0),
+        }
         queue_put("output layer", message)
 
     # Send BERT params.
@@ -425,7 +407,10 @@ def _load_checkpoint(queue, args):
 
         # Pooler.
         pooler = schema.get("pooler", models[0])
-        message = {"weight": pooler["weight"], "bias": pooler["bias"]}
+        message = {
+            "weight": pooler["weight"],
+            "bias": pooler["bias"],
+        }
         queue_put("pooler", message)
 
         # LM head.
@@ -436,44 +421,38 @@ def _load_checkpoint(queue, args):
             "norm weight": lm_head["norm_weight"],
         }
         if norm_has_bias:
-            message["norm bias"] = (lm_head["norm_bias"],)
+            message["norm bias"] = lm_head["norm_bias"],
         queue_put("lm head", message)
 
         # Binary head.
         if md.bert_binary_head:
             binary_head = schema.get("binary_head", models[0])
-            message = {"weight": binary_head["weight"], "bias": binary_head["bias"]}
+            message = {
+                "weight": binary_head["weight"],
+                "bias": binary_head["bias"],
+            }
             queue_put("binary head", message)
 
-    if (
-        hasattr(md, 'embedding_hidden_fusion_type')
-        and md.embedding_hidden_fusion_type == 'weight_fusion'
-    ):
-        embedding_hidden_fusion_layer_ranks = [
-            schema.get("embedding_hidden_fusion_layer_lnwp", m) for m in models
-        ]
-        message = {
-            "weight": torch.cat(
-                [r["weight"] for r in embedding_hidden_fusion_layer_ranks], dim=1
-            )  # weight matrices in torch is stored in transposed form
-        }
-        if (
-            hasattr(md, 'use_embedding_hidden_weight_fusion_bias')
-            and md.use_embedding_hidden_weight_fusion_bias
-        ):
-            message["bias"] = torch.cat(
-                [r["bias"] for r in embedding_hidden_fusion_layer_ranks], dim=1
-            )
-        queue_put("lnwp embedding hidden fusion layer", message)
 
+    if hasattr(md, 'embedding_hidden_fusion_type') and md.embedding_hidden_fusion_type == 'weight_fusion':
+        embedding_hidden_fusion_layer_ranks = [ schema.get("embedding_hidden_fusion_layer_lnwp", m) for m in models ]
+        message = {
+            "weight": torch.cat([r["weight"] for r in embedding_hidden_fusion_layer_ranks], dim=1), # weight matrices in torch is stored in transposed form
+        }
+        if hasattr(md, 'use_embedding_hidden_weight_fusion_bias') and md.use_embedding_hidden_weight_fusion_bias:
+            message["bias"] = torch.cat([r["bias"] for r in embedding_hidden_fusion_layer_ranks], dim=1)
+        queue_put("lnwp embedding hidden fusion layer", message)
+    
     if margs.model_running_mode == "difflm-noshift-uniform" and margs.difflm_use_time_embedding:
         time_embedding = schema.get("time_embed", models[0])
-        message = {"weight1": time_embedding["weight1"], "weight2": time_embedding["weight2"]}
+        message = {
+            "weight1": time_embedding["weight1"],
+            "weight2": time_embedding["weight2"],
+        }
         queue_put("difflm time embedding mlp", message)
-
+    
     # Done.
     queue.put("done")
-
 
 def load_checkpoint(queue, args):
     try:

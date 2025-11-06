@@ -25,15 +25,15 @@ class BertEmbeddingDataset(torch.utils.data.Dataset):
 
     @classmethod
     def build_sample(cls, tokenizer, token_ids):
-        get_constant_array = lambda c: np.full((len(token_ids) + 2,), c, "int64")
+        get_constant_array = lambda c : np.full((len(token_ids) + 2,), c, "int64")
         return {
-            "text": np.array([tokenizer.cls, *token_ids, tokenizer.sep], dtype="int64"),
-            "types": get_constant_array(0),
-            "labels": get_constant_array(-1),
-            "is_random": 0,
-            "loss_mask": get_constant_array(0),
-            "padding_mask": get_constant_array(1),
-            "truncated": 0,
+            "text" : np.array([ tokenizer.cls, *token_ids, tokenizer.sep ], dtype="int64"),
+            "types" : get_constant_array(0),
+            "labels" : get_constant_array(-1),
+            "is_random" : 0,
+            "loss_mask" : get_constant_array(0),
+            "padding_mask" : get_constant_array(1),
+            "truncated" : 0,
         }
 
     def __getitem__(self, idx):
@@ -45,9 +45,9 @@ class BertEmbeddingDataset(torch.utils.data.Dataset):
 
         # Bert/Wordpiece tokens (+truncate).
         bert_token_ids = self.bert_tokenizer.tokenize(text)
-        bert_token_ids = bert_token_ids[: self.max_seq_length - 2]  # cls+sep.
+        bert_token_ids = bert_token_ids[:self.max_seq_length - 2] # cls+sep.
         if not bert_token_ids:
-            bert_token_ids = [self.bert_tokenizer.pad_id]  # hack when empty seq
+            bert_token_ids = [ self.bert_tokenizer.pad_id ] # hack when empty seq
 
         # Bert sample.
         sample = self.build_sample(self.bert_tokenizer, bert_token_ids)

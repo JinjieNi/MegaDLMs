@@ -5,17 +5,17 @@
 import base64
 import json
 import math
-import os
 import types
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional
+import os
 
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
-from megatron.training.tokenizer.multimodal_tokenizer import MultimodalTokenizer
 
 from .bert_tokenization import FullTokenizer as FullBertTokenizer
 from .gpt2_tokenization import GPT2Tokenizer
+from megatron.training.tokenizer.multimodal_tokenizer import MultimodalTokenizer
 
 
 def build_tokenizer(args, **kwargs):
@@ -76,7 +76,11 @@ def build_tokenizer(args, **kwargs):
 
         kwargs = dict()
         if args.tokenizer_prompt_format == "nvlm-yi-34b":
-            kwargs = {"from_slow": True, "legacy": False, "add_bos_token": True}
+            kwargs = {
+                "from_slow": True,
+                "legacy": False,
+                "add_bos_token": True,
+            }
 
         # Currently, only HuggingFace tokenizers are supported.
         underlying_tokenizer = transformers.AutoTokenizer.from_pretrained(

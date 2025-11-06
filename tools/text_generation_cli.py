@@ -1,8 +1,8 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
-import json
 import sys
-
+import json
 import requests
+
 
 if __name__ == "__main__":
     url = sys.argv[1]

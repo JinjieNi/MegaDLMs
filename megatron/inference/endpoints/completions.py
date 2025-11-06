@@ -4,14 +4,14 @@
 See https://platform.openai.com/docs/api-reference/completions/create
 """
 
-import numpy as np
 import torch
-from flask import jsonify, request
-from flask_restful import Resource
-
-from megatron.inference.endpoints.common import LOCK, send_do_generate
-from megatron.inference.text_generation.api import generate_and_post_process
+import numpy as np
 from megatron.training import get_tokenizer
+from megatron.inference.text_generation.api import generate_and_post_process
+from megatron.inference.endpoints.common import send_do_generate, LOCK
+
+from flask import request, jsonify
+from flask_restful import Resource
 
 
 def detokenize(prompt, tok) -> list[str]:
@@ -157,9 +157,7 @@ class MegatronCompletions(Resource):
                 for suffix in stop_until
                 if suffix and suffix in prompt_plus_generation
             ]
-            str_trunc_end_idx = min(
-                filter(lambda x: x != -1, trunc_idxs), default=len(prompt_plus_generation)
-            )
+            str_trunc_end_idx = min(filter(lambda x: x != -1, trunc_idxs), default=len(prompt_plus_generation))
             truncated_generation = prompt_plus_generation[str_trunc_start_idx:str_trunc_end_idx]
 
             # TODO(sasatheesh): handle cases where truncated_generation is not a full token

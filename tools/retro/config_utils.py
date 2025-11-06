@@ -3,6 +3,7 @@
 """Config utils."""
 
 import argparse
+from collections import namedtuple, OrderedDict
 import dataclasses
 import enum
 import inspect
@@ -10,9 +11,17 @@ import os
 import re
 import types
 import typing as T
-from collections import OrderedDict, namedtuple
 
-PARAM_KEYWORDS = {"param", "parameter", "arg", "argument", "attribute", "key", "keyword"}
+
+PARAM_KEYWORDS = {
+    "param",
+    "parameter",
+    "arg",
+    "argument",
+    "attribute",
+    "key",
+    "keyword",
+}
 RAISES_KEYWORDS = {"raises", "raise", "except", "exception"}
 DEPRECATION_KEYWORDS = {"deprecation", "deprecated"}
 RETURNS_KEYWORDS = {"return", "returns"}
@@ -51,7 +60,9 @@ class DocstringMeta:
         :raises ValueError: if something happens
     """
 
-    def __init__(self, args: T.List[str], description: T.Optional[str]) -> None:
+    def __init__(
+        self, args: T.List[str], description: T.Optional[str]
+    ) -> None:
         """Initialize self.
 
         :param args: list of arguments. The exact content of this variable is
@@ -105,7 +116,10 @@ class DocstringRaises(DocstringMeta):
     """DocstringMeta symbolizing :raises metadata."""
 
     def __init__(
-        self, args: T.List[str], description: T.Optional[str], type_name: T.Optional[str]
+        self,
+        args: T.List[str],
+        description: T.Optional[str],
+        type_name: T.Optional[str],
     ) -> None:
         """Initialize self."""
         super().__init__(args, description)
@@ -117,7 +131,10 @@ class DocstringDeprecated(DocstringMeta):
     """DocstringMeta symbolizing deprecation metadata."""
 
     def __init__(
-        self, args: T.List[str], description: T.Optional[str], version: T.Optional[str]
+        self,
+        args: T.List[str],
+        description: T.Optional[str],
+        version: T.Optional[str],
     ) -> None:
         """Initialize self."""
         super().__init__(args, description)
@@ -129,7 +146,10 @@ class DocstringExample(DocstringMeta):
     """DocstringMeta symbolizing example metadata."""
 
     def __init__(
-        self, args: T.List[str], snippet: T.Optional[str], description: T.Optional[str]
+        self,
+        args: T.List[str],
+        snippet: T.Optional[str],
+        description: T.Optional[str],
     ) -> None:
         """Initialize self."""
         super().__init__(args, description)
@@ -141,7 +161,8 @@ class Docstring:
     """Docstring object representation."""
 
     def __init__(
-        self, style=None  # type: T.Optional[DocstringStyle]
+        self,
+        style=None,  # type: T.Optional[DocstringStyle]
     ) -> None:
         """Initialize self."""
         self.short_description = None  # type: T.Optional[str]
@@ -154,14 +175,16 @@ class Docstring:
     @property
     def params(self) -> T.List[DocstringParam]:
         """Return a list of information on function params."""
-        return {m.arg_name: m for m in self.meta if isinstance(m, DocstringParam)}
+        return {m.arg_name:m for m in self.meta if isinstance(m, DocstringParam)}
 
     @property
     def raises(self) -> T.List[DocstringRaises]:
         """Return a list of information on the exceptions that the function
         may raise.
         """
-        return [item for item in self.meta if isinstance(item, DocstringRaises)]
+        return [
+            item for item in self.meta if isinstance(item, DocstringRaises)
+        ]
 
     @property
     def returns(self) -> T.Optional[DocstringReturns]:
@@ -177,7 +200,9 @@ class Docstring:
     @property
     def many_returns(self) -> T.List[DocstringReturns]:
         """Return a list of information on function return."""
-        return [item for item in self.meta if isinstance(item, DocstringReturns)]
+        return [
+            item for item in self.meta if isinstance(item, DocstringReturns)
+        ]
 
     @property
     def deprecation(self) -> T.Optional[DocstringDeprecated]:
@@ -190,7 +215,9 @@ class Docstring:
     @property
     def examples(self) -> T.List[DocstringExample]:
         """Return a list of information on function examples."""
-        return [item for item in self.meta if isinstance(item, DocstringExample)]
+        return [
+            item for item in self.meta if isinstance(item, DocstringExample)
+        ]
 
 
 class SectionType(enum.IntEnum):
@@ -233,7 +260,9 @@ DEFAULT_SECTIONS = [
 class GoogleDocstringParser:
     """Parser for Google-style docstrings."""
 
-    def __init__(self, sections: T.Optional[T.List[Section]] = None, title_colon=True):
+    def __init__(
+        self, sections: T.Optional[T.List[Section]] = None, title_colon=True
+    ):
         """Setup sections.
 
         :param sections: Recognized sections or None to defaults.
@@ -251,7 +280,11 @@ class GoogleDocstringParser:
         else:
             colon = ""
         self.titles_re = re.compile(
-            "^(" + "|".join(f"({t})" for t in self.sections) + ")" + colon + "[ \t\r\f\v]*$",
+            "^("
+            + "|".join(f"({t})" for t in self.sections)
+            + ")"
+            + colon
+            + "[ \t\r\f\v]*$",
             flags=re.M,
         )
 
@@ -266,7 +299,8 @@ class GoogleDocstringParser:
         section = self.sections[title]
 
         if (
-            section.type == SectionType.SINGULAR_OR_MULTIPLE and not MULTIPLE_PATTERN.match(text)
+            section.type == SectionType.SINGULAR_OR_MULTIPLE
+            and not MULTIPLE_PATTERN.match(text)
         ) or section.type == SectionType.SINGULAR:
             return self._build_single_meta(section, text)
 
@@ -295,15 +329,21 @@ class GoogleDocstringParser:
                 is_generator=section.key in YIELDS_KEYWORDS,
             )
         if section.key in RAISES_KEYWORDS:
-            return DocstringRaises(args=[section.key], description=desc, type_name=None)
+            return DocstringRaises(
+                args=[section.key], description=desc, type_name=None
+            )
         if section.key in EXAMPLES_KEYWORDS:
-            return DocstringExample(args=[section.key], snippet=None, description=desc)
+            return DocstringExample(
+                args=[section.key], snippet=None, description=desc
+            )
         if section.key in PARAM_KEYWORDS:
             raise ParseError("Expected paramenter name.")
         return DocstringMeta(args=[section.key], description=desc)
 
     @staticmethod
-    def _build_multi_meta(section: Section, before: str, desc: str) -> DocstringMeta:
+    def _build_multi_meta(
+        section: Section, before: str, desc: str
+    ) -> DocstringMeta:
         if section.key in PARAM_KEYWORDS:
             match = GOOGLE_TYPED_ARG_REGEX.match(before)
             if match:
@@ -339,7 +379,9 @@ class GoogleDocstringParser:
                 is_generator=section.key in YIELDS_KEYWORDS,
             )
         if section.key in RAISES_KEYWORDS:
-            return DocstringRaises(args=[section.key, before], description=desc, type_name=before)
+            return DocstringRaises(
+                args=[section.key, before], description=desc, type_name=before
+            )
         return DocstringMeta(args=[section.key, before], description=desc)
 
     def add_section(self, section: Section):
@@ -377,7 +419,9 @@ class GoogleDocstringParser:
         ret.short_description = parts[0] or None
         if len(parts) > 1:
             long_desc_chunk = parts[1] or ""
-            ret.blank_after_short_description = long_desc_chunk.startswith("\n")
+            ret.blank_after_short_description = long_desc_chunk.startswith(
+                "\n"
+            )
             ret.blank_after_long_description = long_desc_chunk.endswith("\n\n")
             ret.long_description = long_desc_chunk.strip() or None
 
@@ -449,7 +493,7 @@ def verify_and_get_config_attr_descs(config_cls, strict_docstring_match=True):
         docstring = GoogleDocstringParser().parse(config_cls.__doc__)
     except Exception as e:
         raise Exception(f"error parsing {config_cls.__name__} docstring.")
-
+    
     # Get attributes and types.
     config_attrs = docstring.params
     config_types = config_cls.__annotations__
@@ -460,9 +504,7 @@ def verify_and_get_config_attr_descs(config_cls, strict_docstring_match=True):
     missing_attr_keys = config_type_keys - config_attr_keys
     extra_attr_keys = config_attr_keys - config_type_keys
     if strict_docstring_match:
-        assert (
-            not missing_attr_keys and not extra_attr_keys
-        ), f"{config_cls.__name__} docstring is either missing attributes ({', '.join(missing_attr_keys) if missing_attr_keys else '--'}) or contains extra attributes ({', '.join(extra_attr_keys) if extra_attr_keys else '--'})."
+        assert not missing_attr_keys and not extra_attr_keys, f"{config_cls.__name__} docstring is either missing attributes ({', '.join(missing_attr_keys) if missing_attr_keys else '--'}) or contains extra attributes ({', '.join(extra_attr_keys) if extra_attr_keys else '--'})."
 
     # @todo
     # Verify attribute type names.
@@ -470,17 +512,13 @@ def verify_and_get_config_attr_descs(config_cls, strict_docstring_match=True):
     #     ... todo ...
 
     # Verify base class attributes.
-    attrs = {
-        k: v
-        for base_cls in config_cls.__bases__
-        if dataclasses.is_dataclass(base_cls)
-        for k, v in verify_and_get_config_attr_descs(
-            base_cls, strict_docstring_match=strict_docstring_match
-        ).items()
-    }
+    attrs = {k:v for base_cls in config_cls.__bases__ if dataclasses.is_dataclass(base_cls) for k,v in verify_and_get_config_attr_descs(base_cls, strict_docstring_match=strict_docstring_match).items()}
     for key in config_attr_keys:
         if key in config_types:
-            attrs[key] = {"desc": config_attrs[key].description, "type": config_types[key]}
+            attrs[key] = {
+                "desc" : config_attrs[key].description,
+                "type" : config_types[key],
+            }
 
     return attrs
 
@@ -495,13 +533,15 @@ def add_config_args(parser, config_cls):
         else:
 
             default_value = getattr(config_cls, key)
-            args = {"help": attr["desc"], "default": default_value}
+            args = {
+                "help" : attr["desc"],
+                "default" : default_value,
+            }
 
             if _type == bool:
-                assert isinstance(args["default"], (bool, type(None))), (
-                    f"boolean attribute '{key}' of {config_cls.__name__} "
+                assert isinstance(args["default"], (bool, type(None))), \
+                    f"boolean attribute '{key}' of {config_cls.__name__} " \
                     "has non-boolean default value."
-                )
 
                 # When default=True, add 'no-{key}' arg.
                 if default_value:
@@ -553,10 +593,10 @@ def config_from_args(args, config_cls, add_custom_args=False):
         arg_keys = set(vars(args).keys())
         custom_keys = arg_keys - config_keys
 
-        custom_data = {k: v for k, v in vars(args).items() if k in custom_keys}
+        custom_data = {k:v for k, v in vars(args).items() if k in custom_keys}
         custom_config_cls = dataclasses.make_dataclass(
-            "CustomConfig", [(k, type(v)) for k, v in custom_data.items()]
-        )
+            "CustomConfig",
+            [(k, type(v)) for k, v in custom_data.items()])
         custom_config = custom_config_cls(**custom_data)
         data["custom"] = custom_config
 
@@ -574,7 +614,7 @@ def flatten_config(config, base_config_cls=None):
     for field in dataclasses.fields(config):
         value = getattr(config, field.name)
         if dataclasses.is_dataclass(value):
-            flat_config = {**flat_config, **flatten_config(value)}
+            flat_config = { **flat_config, **flatten_config(value) }
         else:
             flat_config[field.name] = value
 
@@ -583,13 +623,10 @@ def flatten_config(config, base_config_cls=None):
         base_keys = set(field.name for field in dataclasses.fields(base_config_cls))
         flat_config_cls = dataclasses.make_dataclass(
             cls_name="FlatMegatronConfig",
-            fields=[
-                (k, T.Any, dataclasses.field(default=None))
-                for k, v in flat_config.items()
-                if k not in base_keys
-            ],
-            bases=(base_config_cls,),
-        )
+            fields=[(k, T.Any, dataclasses.field(default=None))
+                    for k, v in flat_config.items()
+                    if k not in base_keys],
+            bases=(base_config_cls,))
         flat_config = flat_config_cls(**flat_config)
 
     return flat_config

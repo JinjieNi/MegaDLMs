@@ -10,7 +10,7 @@ from megatron.core import parallel_state, tensor_parallel
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.moe.legacy_a2a_token_dispatcher import MoEAlltoAllSEQTokenDispatcher
-from megatron.core.transformer.moe.router import ExpertChoiceRouter, TopKRouter
+from megatron.core.transformer.moe.router import TopKRouter, ExpertChoiceRouter
 from megatron.core.transformer.moe.token_dispatcher import (
     MoEAllGatherTokenDispatcher,
     MoEAlltoAllTokenDispatcher,
@@ -188,22 +188,13 @@ class MoELayerExpertChoice(BaseMoELayer):
         # Initialize shared experts
         if self.use_shared_expert:
             if not self.config.shared_experts_with_logits:
-                self.shared_experts = build_module(
-                    self.submodules.shared_experts, config=self.config
-                )
+                self.shared_experts = build_module(self.submodules.shared_experts, config=self.config)
             else:
                 single_shared_expert_dim = self.config.moe_ffn_hidden_size
-                n_shared_experts = (
-                    self.config.moe_shared_expert_intermediate_size // single_shared_expert_dim
-                )
+                n_shared_experts = self.config.moe_shared_expert_intermediate_size // single_shared_expert_dim
                 total_shared_expert_dim = self.config.moe_shared_expert_intermediate_size
                 self.config.moe_shared_expert_intermediate_size = single_shared_expert_dim
-                self.shared_experts = torch.nn.ModuleList(
-                    [
-                        build_module(self.submodules.shared_experts, config=self.config)
-                        for _ in range(n_shared_experts)
-                    ]
-                )
+                self.shared_experts = torch.nn.ModuleList([build_module(self.submodules.shared_experts, config=self.config) for _ in range(n_shared_experts)])
                 self.config.moe_shared_expert_intermediate_size = total_shared_expert_dim
             if self.shared_expert_overlap:
                 self.token_dispatcher.set_shared_experts(self.shared_experts)
@@ -216,7 +207,7 @@ class MoELayerExpertChoice(BaseMoELayer):
         #     print(torch.isinf(weight1).any(), torch.isinf(weight2).any())
         #     print(weight1.shape, weight2.shape)
         # import sys; sys.exit()
-
+        
         # print(getattr(self.experts.linear_fc2, f"weight0"))
         # print(torch.isnan(getattr(self.experts.linear_fc2, f"weight0")).sum())
         # print(getattr(self.experts.linear_fc2, f"weight0").shape)
@@ -225,20 +216,20 @@ class MoELayerExpertChoice(BaseMoELayer):
         #         if torch.isnan(num1).any():
         #             print(num1)
         # import sys; sys.exit()
-
+        
         # print(self.shared_experts.linear_fc1.weight)
         # print(self.shared_experts.linear_fc1.weight.shape)
         # print(torch.isnan(self.shared_experts.linear_fc1.weight).sum())
         # print(torch.isinf(self.shared_experts.linear_fc1.weight).sum())
         # import sys; sys.exit()
-
+        
         # print(self.router.weight)
         # print(self.router.weight.shape)
         # print(torch.isnan(self.router.weight).sum())
         # print(torch.isinf(self.router.weight).sum())
         # print(self.router.weight.max(), self.router.weight.min())
         # import sys; sys.exit()
-
+        
         if (
             self.training
             and self.config.tensor_model_parallel_size > 1
@@ -253,13 +244,10 @@ class MoELayerExpertChoice(BaseMoELayer):
         def custom_forward(hidden_states):
             probs, routing_map = self.router(hidden_states)
             if self.use_shared_expert and self.config.shared_experts_with_logits:
-                n_shared_experts = (
-                    self.config.moe_shared_expert_intermediate_size
-                    // self.config.moe_ffn_hidden_size
-                )
+                n_shared_experts = self.config.moe_shared_expert_intermediate_size // self.config.moe_ffn_hidden_size
                 shared_expert_logits = probs[:, -n_shared_experts:]
                 probs = probs[:, :-n_shared_experts]
-
+                
             (dispatched_input, tokens_per_expert) = self.token_dispatcher.token_permutation(
                 hidden_states, probs, routing_map
             )
@@ -272,20 +260,17 @@ class MoELayerExpertChoice(BaseMoELayer):
                     if self.config.shared_experts_with_logits:
                         seq_len, bsz, hidden_dim = hidden_states.shape
                         share_expert_outputs = [
-                            shared_expert(hidden_states)
-                            * shared_expert_logits[:, s_i].view(seq_len, bsz, 1)
+                            shared_expert(hidden_states) * shared_expert_logits[:, s_i].view(seq_len, bsz, 1)
                             for s_i, shared_expert in enumerate(self.shared_experts)
-                        ]
+                            ]
                         for _out_state in share_expert_outputs:
                             output += _out_state
                         # output += torch.sum(torch.stack(share_expert_outputs, dim=2), dim=2)
-
+                        
                     else:
                         output += self.shared_experts(hidden_states)
                 elif self.shared_expert_overlap and self.config.shared_experts_with_logits:
-                    raise NotImplementedError(
-                        "Shared experts with logits not implemented for self.shared_expert_overlap."
-                    )
+                    raise NotImplementedError("Shared experts with logits not implemented for self.shared_expert_overlap.")
             return output, mlp_bias
 
         if self.moe_layer_recompute:

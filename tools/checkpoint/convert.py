@@ -2,15 +2,12 @@
 
 import argparse
 import importlib
-import sys
-from pathlib import Path
-
 import torch.multiprocessing as mp
-
 # mp.set_start_method('spawn', force=True)
 
 
-
+import sys
+from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent.parent.absolute()))
 from custom_args.difflm import extra_args_provider as extra_args_provider_difflm
 from custom_args.glr import extra_args_provider as extra_args_provider_plmt
@@ -103,7 +100,6 @@ from custom_args.glr import extra_args_provider as extra_args_provider_plmt
 # }
 # - "done"
 
-
 def load_plugin(plugin_type, name):
     module_name = f"{plugin_type}_{name}"
     try:
@@ -124,49 +120,28 @@ def load_plugin(plugin_type, name):
     return plugin
 
 
+
 def main():
     import argparse
+    parser = argparse.ArgumentParser(description="Megatron Checkpoint Converter Arguments",
+                                     allow_abbrev=False, conflict_handler='resolve')
 
-    parser = argparse.ArgumentParser(
-        description="Megatron Checkpoint Converter Arguments",
-        allow_abbrev=False,
-        conflict_handler='resolve',
-    )
-
-    parser.add_argument(
-        '--model-type',
-        type=str,
-        required=True,
-        choices=['GPT', 'BERT', 'GLR-plmt', 'GLR-plmt-lnwp', 'difflm'],
-        help='Type of the model',
-    )
-    parser.add_argument(
-        '--loader',
-        type=str,
-        default='megatron',
-        help='Module name to load checkpoint, should be on python path',
-    )
-    parser.add_argument(
-        '--saver',
-        type=str,
-        default='megatron',
-        help='Module name to save checkpoint, should be on python path',
-    )
-    parser.add_argument(
-        '--load-dir', type=str, required=True, help='Directory to load model checkpoint from'
-    )
-    parser.add_argument(
-        '--save-dir', type=str, required=True, help='Directory to save model checkpoint to'
-    )
-    parser.add_argument(
-        '--max-queue-size', type=int, default=50, help='Maximum number of tensors in the queue'
-    )
-    parser.add_argument(
-        '--no-checking',
-        action='store_false',
-        help='Do not perform checking on the name and ordering of weights',
-        dest='checking',
-    )
+    parser.add_argument('--model-type', type=str, required=True,
+                        choices=['GPT', 'BERT', 'GLR-plmt', 'GLR-plmt-lnwp', 'difflm'],
+                        help='Type of the model')
+    parser.add_argument('--loader', type=str, default='megatron',
+                        help='Module name to load checkpoint, should be on python path')
+    parser.add_argument('--saver', type=str, default='megatron',
+                        help='Module name to save checkpoint, should be on python path')
+    parser.add_argument('--load-dir', type=str, required=True,
+                        help='Directory to load model checkpoint from')
+    parser.add_argument('--save-dir', type=str, required=True,
+                        help='Directory to save model checkpoint to')
+    parser.add_argument('--max-queue-size', type=int, default=50,
+                        help='Maximum number of tensors in the queue')
+    parser.add_argument('--no-checking', action='store_false',
+                        help='Do not perform checking on the name and ordering of weights',
+                        dest='checking')
 
     known_args, _ = parser.parse_known_args()
 
@@ -177,7 +152,6 @@ def main():
             setattr(known_args, key, "legacy")
         if old_value == "mcore":
             setattr(known_args, key, "core")
-
     update_loader_saver("loader")
     update_loader_saver("saver")
 
@@ -188,7 +162,7 @@ def main():
     # Parser loader/saver args.
     loader.add_arguments(parser)
     saver.add_arguments(parser)
-
+    
     if known_args.model_type == 'GLR-plmt' or known_args.model_type == 'GLR-plmt-lnwp':
         extra_args_provider_plmt(parser)
     elif known_args.model_type == 'difflm' or known_args.model_type == 'difflm-conditional':
@@ -199,7 +173,7 @@ def main():
         pass
     else:
         raise Exception(f'unrecognized model type: {known_args.model_type}')
-
+    
     args = parser.parse_args()
 
     # Initialize queue

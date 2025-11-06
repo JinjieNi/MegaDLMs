@@ -19,30 +19,25 @@ import string
 import unicodedata
 from functools import partial
 from multiprocessing import Pool as ProcessPool
-from typing import Dict, List, Tuple
+from typing import Tuple, List, Dict
 
 import regex as re
-
 from tasks.orqa.unsupervised.tokenizers import SimpleTokenizer
 
 logger = logging.getLogger(__name__)
 
-QAMatchStats = collections.namedtuple('QAMatchStats', ['top_k_hits', 'questions_doc_hits'])
+QAMatchStats = collections.namedtuple('QAMatchStats', ['top_k_hits',\
+                                        'questions_doc_hits'])
 
-
-def calculate_matches(
-    all_docs: Dict[object, Tuple[str, str]],
-    answers: List[List[str]],
-    closest_docs: List[Tuple[List[object], List[float]]],
-    workers_num: int,
-    match_type: str,
-) -> QAMatchStats:
+def calculate_matches(all_docs: Dict[object, Tuple[str, str]], 
+    answers: List[List[str]], closest_docs: List[Tuple[List[object], 
+    List[float]]], workers_num: int, match_type: str) -> QAMatchStats:
     """
-    Evaluates answers presence in the set of documents. This function is
-    supposed to be used with a large collection of documents and results.
-    It internally forks multiple sub-processes for evaluation and then
+    Evaluates answers presence in the set of documents. This function is 
+    supposed to be used with a large collection of documents and results. 
+    It internally forks multiple sub-processes for evaluation and then 
     merges results
-    :param all_docs: dictionary of the entire documents database.
+    :param all_docs: dictionary of the entire documents database. 
         doc_id -> (doc_text, title)
     :param answers: list of answers's list. One list per question
     :param closest_docs: document ids of the top results along with their
@@ -63,11 +58,14 @@ def calculate_matches(
     tok_opts = {}
     tokenizer = SimpleTokenizer(**tok_opts)
 
-    processes = ProcessPool(processes=workers_num)
+    processes = ProcessPool(
+        processes=workers_num,
+    )
 
     logger.info('Matching answers in top docs...')
 
-    get_score_partial = partial(check_answer, match_type=match_type, tokenizer=tokenizer)
+    get_score_partial = partial(check_answer, match_type=match_type,
+                                    tokenizer=tokenizer)
 
     questions_answers_docs = zip(answers, closest_docs)
 
@@ -113,7 +111,7 @@ def check_answer(questions_answers_docs, tokenizer, match_type) -> List[bool]:
 def has_answer(answers, text, tokenizer, match_type) -> bool:
     """
     Check if a document contains an answer string.
-    If `match_type` is string, token matching is done between the text
+    If `match_type` is string, token matching is done between the text 
         and answer.
     If `match_type` is regex, we search the whole text with the regex.
     """
@@ -129,7 +127,7 @@ def has_answer(answers, text, tokenizer, match_type) -> bool:
             single_answer = single_answer.words(uncased=True)
 
             for i in range(0, len(text) - len(single_answer) + 1):
-                if single_answer == text[i : i + len(single_answer)]:
+                if single_answer == text[i: i + len(single_answer)]:
                     return True
 
     elif match_type == 'regex':
@@ -144,7 +142,10 @@ def has_answer(answers, text, tokenizer, match_type) -> bool:
 def regex_match(text, pattern):
     """Test if a regex pattern is contained within a text."""
     try:
-        pattern = re.compile(pattern, flags=re.IGNORECASE + re.UNICODE + re.MULTILINE)
+        pattern = re.compile(
+            pattern,
+            flags=re.IGNORECASE + re.UNICODE + re.MULTILINE,
+        )
     except Exception:
         return False
     return pattern.search(text) is not None

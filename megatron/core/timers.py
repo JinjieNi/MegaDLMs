@@ -419,7 +419,7 @@ class Timers:
             for name in name_to_min_max_time:
                 _, max_time = name_to_min_max_time[name]
                 writer.add_scalar(name + '-time', max_time, iteration)
-
+    
     def wandb_write(
         self,
         names: List[str],

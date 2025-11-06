@@ -9,9 +9,9 @@ from torch.nn import Linear
 
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.models.common.embeddings.rope_utils import (
-    apply_2d_rotary_pos_emb,
     apply_rotary_pos_emb,
     apply_rotary_pos_emb_with_cos_sin,
+    apply_2d_rotary_pos_emb
 )
 from megatron.core.parallel_state import (
     get_data_parallel_group,
@@ -43,13 +43,11 @@ except ImportError:
     HAVE_TE = False
     SplitAlongDim = None
 
-
 @dataclass
 class SelfAttentionSubmodules:
     """
     Configuration class for specifying the submodules of a self-attention.
     """
-
     linear_qkv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
     linear_proj: Union[ModuleSpec, type] = None
@@ -91,7 +89,7 @@ class Attention(MegatronModule, ABC):
         self.layer_number = layer_number
         self.attn_mask_type = attn_mask_type
         self.attention_type = attention_type
-
+        
         # For normal attention without groups, num_query_groups == num_attention_heads,
         # so these two will be the same
         self.query_projection_size = self.config.kv_channels * self.config.num_attention_heads
@@ -784,26 +782,25 @@ class GLRAttention(Attention):
         if inference_params is None:
             return query, key, value, rotary_pos_emb, attn_mask_type
 
-        # Here we can't use pre-allocated memory and then cache kv in-place,
+        # Here we can't use pre-allocated memory and then cache kv in-place, 
         # which will change the _version of the kv cache, raising in-place error in the backward.
         if self.layer_number not in inference_params.key_value_memory_dict:
             inference_key_memory = None
             inference_value_memory = None
-            inference_params.key_value_memory_dict[self.layer_number] = (key, value)
+            inference_params.key_value_memory_dict[self.layer_number] = (
+                key,
+                value,
+            )
         else:
             # Get the pre-allocated buffers for this layer
             inference_key_memory, inference_value_memory = inference_params.key_value_memory_dict[
                 self.layer_number
             ]
 
-        assert not hasattr(
-            inference_params, "batch_size_offset"
-        ), "batch_size_offset should not be used in latent forward"
+        assert not hasattr(inference_params, "batch_size_offset"), "batch_size_offset should not be used in latent forward"
         sequence_start = inference_params.sequence_len_offset
         sequence_end = sequence_start + key.size(0)
-        assert (
-            sequence_end <= inference_params.max_sequence_length
-        ), f"sequence_end: {sequence_end} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
+        assert sequence_end <= inference_params.max_sequence_length, f"sequence_end: {sequence_end} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
 
         # Copy key and values.
         if inference_key_memory is not None:
@@ -816,13 +813,9 @@ class GLRAttention(Attention):
             )
             key = inference_key_memory
             value = inference_value_memory
-
-        assert (
-            key.shape[0] <= inference_params.max_sequence_length
-        ), f"key.shape[0]: {key.shape[0]} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
-        assert (
-            value.shape[0] <= inference_params.max_sequence_length
-        ), f"value.shape[0]: {value.shape[0]} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
+            
+        assert key.shape[0] <= inference_params.max_sequence_length, f"key.shape[0]: {key.shape[0]} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
+        assert value.shape[0] <= inference_params.max_sequence_length, f"value.shape[0]: {value.shape[0]} should be less or equal than max_sequence_length: {inference_params.max_sequence_length}"
 
         # adjust the key rotary positional embedding
         if rotary_pos_emb is None:
@@ -899,7 +892,7 @@ class GLRAttention(Attention):
         rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
         return query, key, value, rotary_pos_emb, attn_mask_type
-
+    
     def forward(
         self,
         hidden_states,
@@ -965,22 +958,12 @@ class GLRAttention(Attention):
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
-        assert not (
-            latent_forward_params and inference_params
-        ), f"Latent forward params and inference params should not be used together: latent_forward_params: {latent_forward_params},\n\n inference_params: {inference_params}"
-
-        query, key, value, rotary_pos_emb, attn_mask_type = (
-            self._adjust_key_value_for_latent_forward(
-                latent_forward_params,
-                query,
-                key,
-                value,
-                rotary_pos_emb,
-                rotary_pos_cos,
-                rotary_pos_sin,
-            )
+        assert not (latent_forward_params and inference_params), f"Latent forward params and inference params should not be used together: latent_forward_params: {latent_forward_params},\n\n inference_params: {inference_params}"
+        
+        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_latent_forward(
+            latent_forward_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
-
+        
         query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
@@ -1010,7 +993,7 @@ class GLRAttention(Attention):
             query = apply_rotary_pos_emb(
                 query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q
             )
-
+            
             key = apply_rotary_pos_emb(key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv)
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -1042,7 +1025,7 @@ class GLRAttention(Attention):
                 attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
-
+            
         if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
             # reshape to same output shape as unpacked case
             # (t, np, hn) -> (t, b=1, h=np*hn)
@@ -1281,7 +1264,7 @@ class DiffLMAttention(Attention):
         """
         Perform a forward pass through the attention module.
         """
-
+        
         # hidden_states: [sq, b, h]
         if self.config.flash_decode:
             rotary_pos_emb = None
@@ -1330,14 +1313,12 @@ class DiffLMAttention(Attention):
             output, bias = self.linear_proj(context_layer)
             return output, bias
 
-        assert not (
-            latent_forward_params and inference_params
-        ), f"Latent forward params and inference params should not be used together: latent_forward_params: {latent_forward_params},\n\n inference_params: {inference_params}"
-
+        assert not (latent_forward_params and inference_params), f"Latent forward params and inference params should not be used together: latent_forward_params: {latent_forward_params},\n\n inference_params: {inference_params}"
+        
         query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
-
+        
         # rotary_pos_emb = (
         #     self._adjust_rotary_pos_emb_for_padding(rotary_pos_emb[0], attention_mask),
         #     self._adjust_rotary_pos_emb_for_padding(rotary_pos_emb[1], attention_mask)
@@ -1368,7 +1349,7 @@ class DiffLMAttention(Attention):
             query = apply_rotary_pos_emb(
                 query, q_pos_emb, config=self.config, cu_seqlens=cu_seqlens_q
             )
-
+            
             key = apply_rotary_pos_emb(key, k_pos_emb, config=self.config, cu_seqlens=cu_seqlens_kv)
 
             # TODO, can apply positional embedding to value_layer so it has
@@ -1400,7 +1381,7 @@ class DiffLMAttention(Attention):
                 attention_bias=attention_bias,
                 packed_seq_params=packed_seq_params,
             )
-
+            
         if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
             # reshape to same output shape as unpacked case
             # (t, np, hn) -> (t, b=1, h=np*hn)
@@ -1478,45 +1459,45 @@ class DiffLMSelfAttention(DiffLMAttention):
     #     """
     #     Due to padding, we have to skip the rope embed for those padding tokens.
     #     """
-
+        
     #     if self.config.on_the_fly_eval_pad_seq and self.attn_mask_type == AttnMaskType.padding:
     #         assert attention_mask is not None
     #         # attention mask shape: [b, s], rotary_pos_emb shape: [s, b, hp, hn]
     #         # for each token in the sequence, if it is a padding token, we set the rotary_pos_emb to 0 and carry this place's rotary_pos_emb to the next token
-
+            
     #         batch_size, seq_len = attention_mask.shape
     #         device = rotary_pos_emb.device
-
+            
     #         rotary_pos_emb = rotary_pos_emb.repeat(1, batch_size, 1, 1)
     #         # Initialize output tensor with zeros
     #         adjusted_rotary_pos_emb = torch.zeros_like(rotary_pos_emb)
-
+            
     #         # More efficient vectorized approach for batches with regular patterns
     #         # For irregular padding patterns, fall back to per-batch processing
     #         for b in range(batch_size):
     #             # Get the attention mask for this batch: 1 = padding, 0 = valid
     #             mask = attention_mask[b]  # [s]
-
+                
     #             # Find valid (non-padding) positions: where mask == 0
     #             valid_positions = (mask == 0).nonzero(as_tuple=True)[0]  # [num_valid]
-
+                
     #             if len(valid_positions) == 0:
     #                 # All tokens are padding, adjusted_rotary_pos_emb is already initialized to 0
     #                 continue
-
+                
     #             # For each valid token position, assign the compressed rotary embedding
     #             # Use advanced indexing for efficiency
     #             num_valid = len(valid_positions)
     #             compressed_indices = torch.arange(num_valid, device=device)
-
+                
     #             # Only process up to seq_len compressed positions
     #             max_compressed = min(num_valid, seq_len)
     #             if max_compressed > 0:
     #                 adjusted_rotary_pos_emb[valid_positions[:max_compressed], b, :, :] = \
     #                     rotary_pos_emb[compressed_indices[:max_compressed], b, :, :]
-
+            
     #         return adjusted_rotary_pos_emb
-
+    
     #     return rotary_pos_emb
 
     def run_realtime_tests(self):
@@ -1627,7 +1608,7 @@ class DiffLMSelfAttention(DiffLMAttention):
             # [sq, b, ng, (np/ng + 2) * hn]
             # --> [sq, b, ng, np/ng * hn], [sq, b, ng, hn], [sq, b, ng, hn]
             (query, key, value) = torch.split(mixed_qkv, split_arg_list, dim=3)
-
+        
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
         query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
 
@@ -1641,3 +1622,5 @@ class DiffLMSelfAttention(DiffLMAttention):
             self.run_realtime_tests()
 
         return query, key, value
+
+

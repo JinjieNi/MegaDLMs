@@ -4,5 +4,6 @@ import os
 
 from . import retro
 
+
 if __name__ == "__main__":
     retro.init(os.environ["RETRO_PROJECT_DIR"])

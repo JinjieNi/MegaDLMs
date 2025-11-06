@@ -1,24 +1,19 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 
-import argparse
 import glob
-import json
 import sys
+import json
+import argparse
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--json_path", type=str, default=".", help="path where all the json files are located"
-    )
+    parser.add_argument("--json_path", type=str, default=".",
+        help="path where all the json files are located")
 
-    parser.add_argument(
-        "--output_file",
-        type=str,
-        default="merged_output.json",
-        help="filename where the merged json should go",
-    )
+    parser.add_argument("--output_file", type=str, default="merged_output.json",
+        help="filename where the merged json should go")
 
     args = parser.parse_args()
 
@@ -41,4 +36,7 @@ if __name__ == '__main__':
                     each_row = json.loads(row)
                     outfile.write(row)
 
+
     print("Merged file", out_file, flush=True)
+
+

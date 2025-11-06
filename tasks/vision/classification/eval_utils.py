@@ -6,12 +6,14 @@ import os
 from functools import partial
 
 import torch
-from torchvision import datasets, transforms
 
+from megatron.training import get_args
+from megatron.training import print_rank_0, print_rank_last
 from megatron.core import mpu
 from megatron.schedules import get_forward_backward_func
-from megatron.training import get_args, print_rank_0, print_rank_last
-from tasks.vision.finetune_utils import build_data_loader, process_batch
+from tasks.vision.finetune_utils import build_data_loader
+from tasks.vision.finetune_utils import process_batch
+from torchvision import datasets, transforms
 
 
 def accuracy_func_provider():
@@ -38,7 +40,7 @@ def accuracy_func_provider():
         args.micro_batch_size,
         num_workers=args.num_workers,
         drop_last=(mpu.get_data_parallel_world_size() > 1),
-        shuffle=False,
+        shuffle=False
     )
 
     def metrics_func(model, epoch):
@@ -73,7 +75,7 @@ def calculate_correct_answers(model, dataloader, epoch):
 
         return 0, loss_dict
 
-    # defined inside to capture output_predictions
+    #defined inside to capture output_predictions
     def correct_answers_forward_step(batch, model):
         try:
             batch_ = next(batch)
@@ -92,14 +94,8 @@ def calculate_correct_answers(model, dataloader, epoch):
         correct = 0
         for _, batch in enumerate(dataloader):
 
-            loss_dicts = forward_backward_func(
-                correct_answers_forward_step,
-                batch,
-                model,
-                optimizer=None,
-                timers=None,
-                forward_only=True,
-            )
+            loss_dicts = forward_backward_func(correct_answers_forward_step, batch, model,
+                                               optimizer=None, timers=None, forward_only=True)
 
             for loss_dict in loss_dicts:
                 total += loss_dict['total']
@@ -111,7 +107,8 @@ def calculate_correct_answers(model, dataloader, epoch):
     # Reduce.
     if mpu.is_pipeline_last_stage():
         unreduced = torch.cuda.LongTensor([correct, total])
-        torch.distributed.all_reduce(unreduced, group=mpu.get_data_parallel_group())
+        torch.distributed.all_reduce(unreduced,
+                                     group=mpu.get_data_parallel_group())
 
         # Print on screen.
         correct_ans = unreduced[0].item()

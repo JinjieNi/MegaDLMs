@@ -1,22 +1,14 @@
 from typing import Callable, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
+from torch import nn, Tensor
 import torch.nn.functional as F
-from torch import Tensor, nn
+
+import numpy as np
+
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, DynamicCache, SlidingWindowCache, StaticCache
 from transformers.generation import GenerationMixin
-from transformers.generation.configuration_utils import GenerationConfig
-from transformers.generation.logits_process import LogitsProcessorList
-from transformers.generation.stopping_criteria import StoppingCriteriaList
-from transformers.generation.streamers import BaseStreamer
-from transformers.generation.utils import (
-    GenerateBeamDecoderOnlyOutput,
-    GenerateBeamEncoderDecoderOutput,
-    GenerateDecoderOnlyOutput,
-    GenerateEncoderDecoderOutput,
-)
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.modeling_outputs import (
@@ -38,14 +30,35 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.utils.deprecation import deprecate_kwarg
-
+from transformers.generation.configuration_utils import (
+    GenerationConfig,
+)
+from transformers.generation.logits_process import (
+    LogitsProcessorList,
+)
+from transformers.generation.stopping_criteria import (
+    StoppingCriteriaList,
+)
+from transformers.generation.streamers import (
+    BaseStreamer,
+)
+from transformers.generation.utils import (
+    GenerateDecoderOnlyOutput,
+    GenerateEncoderDecoderOutput,
+    GenerateBeamDecoderOnlyOutput,
+    GenerateBeamEncoderDecoderOutput,
+)
 # Typing shortcuts
 GenerateNonBeamOutput = Union[GenerateDecoderOnlyOutput, GenerateEncoderDecoderOutput]
 GenerateBeamOutput = Union[GenerateBeamDecoderOnlyOutput, GenerateBeamEncoderDecoderOutput]
 GenerateOutput = Union[GenerateNonBeamOutput, GenerateBeamOutput]
-from transformers.generation.logits_process import LogitsProcessorList, TopPLogitsWarper
-
 from .configuration_dlm import DLMConfig
+
+from transformers.generation.logits_process import (
+    LogitsProcessorList,
+    TopPLogitsWarper,
+)
+
 
 logger = logging.get_logger(__name__)
 
@@ -111,9 +124,7 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     batch, num_key_value_heads, slen, head_dim = hidden_states.shape
     if n_rep == 1:
         return hidden_states
-    hidden_states = hidden_states[:, :, None, :, :].expand(
-        batch, num_key_value_heads, n_rep, slen, head_dim
-    )
+    hidden_states = hidden_states[:, :, None, :, :].expand(batch, num_key_value_heads, n_rep, slen, head_dim)
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
@@ -150,9 +161,7 @@ class DLMAttention(nn.Module):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
-        self.head_dim = getattr(
-            config, "head_dim", config.hidden_size // config.num_attention_heads
-        )
+        self.head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
         self.num_key_value_groups = config.num_attention_heads // config.num_key_value_heads
         self.scaling = self.head_dim**-0.5
         self.attention_dropout = config.attention_dropout
@@ -160,25 +169,13 @@ class DLMAttention(nn.Module):
         if self.config.attn_mask_type == "bidirectional":
             self.is_causal = False
             print("Bidirectional attention mask is used.")
-        self.q_proj = nn.Linear(
-            config.hidden_size, config.num_attention_heads * self.head_dim, bias=False
-        )
-        self.k_proj = nn.Linear(
-            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=False
-        )
-        self.v_proj = nn.Linear(
-            config.hidden_size, config.num_key_value_heads * self.head_dim, bias=False
-        )
-        self.o_proj = nn.Linear(
-            config.num_attention_heads * self.head_dim, config.hidden_size, bias=False
-        )
-
-        self.q_norm = DLMRMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # unlike olmo, only on the head dim!
-        self.k_norm = DLMRMSNorm(
-            self.head_dim, eps=config.rms_norm_eps
-        )  # thus post q_norm does not need reshape
+        self.q_proj = nn.Linear(config.hidden_size, config.num_attention_heads * self.head_dim, bias=False)
+        self.k_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=False)
+        self.v_proj = nn.Linear(config.hidden_size, config.num_key_value_heads * self.head_dim, bias=False)
+        self.o_proj = nn.Linear(config.num_attention_heads * self.head_dim, config.hidden_size, bias=False)
+        
+        self.q_norm = DLMRMSNorm(self.head_dim, eps=config.rms_norm_eps)  # unlike olmo, only on the head dim!
+        self.k_norm = DLMRMSNorm(self.head_dim, eps=config.rms_norm_eps)  # thus post q_norm does not need reshape
 
     def forward(
         self,
@@ -202,9 +199,7 @@ class DLMAttention(nn.Module):
         if past_key_value is not None:
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
-            )
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
         sliding_window = None
         if (
@@ -216,9 +211,7 @@ class DLMAttention(nn.Module):
 
         attention_interface: Callable = eager_attention_forward
         if self.config._attn_implementation != "eager":
-            if self.config._attn_implementation == "sdpa" and kwargs.get(
-                "output_attentions", False
-            ):
+            if self.config._attn_implementation == "sdpa" and kwargs.get("output_attentions", False):
                 logger.warning_once(
                     "`torch.nn.functional.scaled_dot_product_attention` does not support `output_attentions=True`. Falling back to "
                     'eager attention. This warning can be removed using the argument `attn_implementation="eager"` when loading the model.'
@@ -286,9 +279,7 @@ class DLMDecoderLayer(nn.Module):
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
-        position_embeddings: Optional[
-            Tuple[torch.Tensor, torch.Tensor]
-        ] = None,  # necessary, but kept here for BC
+        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # necessary, but kept here for BC
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
         residual = hidden_states
@@ -348,16 +339,11 @@ class DLMRotaryEmbedding(nn.Module):
         """
         seq_len = torch.max(position_ids) + 1
         if seq_len > self.max_seq_len_cached:  # growth
-            inv_freq, self.attention_scaling = self.rope_init_fn(
-                self.config, device, seq_len=seq_len
-            )
+            inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device, seq_len=seq_len)
             self.register_buffer("inv_freq", inv_freq, persistent=False)
             self.max_seq_len_cached = seq_len
 
-        if (
-            seq_len < self.original_max_seq_len
-            and self.max_seq_len_cached > self.original_max_seq_len
-        ):  # reset
+        if seq_len < self.original_max_seq_len and self.max_seq_len_cached > self.original_max_seq_len:  # reset
             # This .to() is needed if the model has been moved to a device after being initialized (because
             # the buffer is automatically moved, but not the original copy)
             self.original_inv_freq = self.original_inv_freq.to(device)
@@ -370,15 +356,11 @@ class DLMRotaryEmbedding(nn.Module):
             self._dynamic_frequency_update(position_ids, device=x.device)
 
         # Core RoPE block
-        inv_freq_expanded = (
-            self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-        )
+        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
         position_ids_expanded = position_ids[:, None, :].float()
         # Force float32 (see https://github.com/huggingface/transformers/pull/29285)
         device_type = x.device.type
-        device_type = (
-            device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
-        )
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
         with torch.autocast(device_type=device_type, enabled=False):
             freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
             emb = torch.cat((freqs, freqs), dim=-1)
@@ -563,13 +545,9 @@ class DLMModel(DLMPreTrainedModel):
         cache_position: Optional[torch.LongTensor] = None,
         **flash_attn_kwargs: Unpack[FlashAttentionKwargs],
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        output_attentions = (
-            output_attentions if output_attentions is not None else self.config.output_attentions
-        )
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -585,7 +563,7 @@ class DLMModel(DLMPreTrainedModel):
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
-
+        
         # if use_cache and past_key_values is None:
         #     past_key_values = DynamicCache()
 
@@ -597,17 +575,13 @@ class DLMModel(DLMPreTrainedModel):
 
         if position_ids is None:
             if attention_mask is not None:
-                position_ids = attention_mask.long().cumsum(dim=1) - 1
+                position_ids = attention_mask.long().cumsum(dim=1)-1
                 position_ids.masked_fill_(attention_mask == 0, value=1)
             else:
-                position_ids = (
-                    torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device)
-                    .long()[None, :]
-                    .repeat(inputs_embeds.shape[0], 1)
-                )
+                position_ids = torch.arange(inputs_embeds.shape[1], device=inputs_embeds.device).long()[None, :].repeat(inputs_embeds.shape[0], 1)
 
         causal_mask = None
-
+        
         # causal_mask = self._update_causal_mask(
         #     attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         # )
@@ -621,7 +595,7 @@ class DLMModel(DLMPreTrainedModel):
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
-
+        
         for decoder_layer in self.layers[: self.config.num_hidden_layers]:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -661,7 +635,7 @@ class DLMModel(DLMPreTrainedModel):
         # add hidden states from the last decoder layer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
-
+        
         output = BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
             past_key_values=past_key_values if use_cache else None,
@@ -736,16 +710,11 @@ class DLMModel(DLMPreTrainedModel):
             causal_mask = torch.full(
                 (sequence_length, target_length), fill_value=min_dtype, dtype=dtype, device=device
             )
-            diagonal_attend_mask = torch.arange(
-                target_length, device=device
-            ) > cache_position.reshape(-1, 1)
+            diagonal_attend_mask = torch.arange(target_length, device=device) > cache_position.reshape(-1, 1)
             if config.sliding_window is not None:
                 # if we have sliding window, we should not attend to tokens beyond sliding window length, so we mask them out also
                 # the check is needed to verify is current checkpoint was trained with sliding window or not
-                if (
-                    not isinstance(past_key_values, SlidingWindowCache)
-                    or sequence_length > target_length
-                ):
+                if not isinstance(past_key_values, SlidingWindowCache) or sequence_length > target_length:
                     sliding_attend_mask = torch.arange(target_length, device=device) <= (
                         cache_position.reshape(-1, 1) - config.sliding_window
                     )
@@ -757,9 +726,9 @@ class DLMModel(DLMPreTrainedModel):
                 if attention_mask.shape[-1] > target_length:
                     attention_mask = attention_mask[:, :target_length]
                 mask_length = attention_mask.shape[-1]
-                padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[
-                    :, None, None, :
-                ].to(causal_mask.device)
+                padding_mask = causal_mask[:, :, :, :mask_length] + attention_mask[:, None, None, :].to(
+                    causal_mask.device
+                )
                 padding_mask = padding_mask == 0
                 causal_mask[:, :, :, :mask_length] = causal_mask[:, :, :, :mask_length].masked_fill(
                     padding_mask, min_dtype
@@ -801,6 +770,7 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
     def get_decoder(self):
         return self.model
 
+
     def get_num_transfer_tokens(self, mask_index, steps):
         '''
         In the reverse process, the interval [0, 1] is uniformly discretized into steps intervals.
@@ -814,17 +784,20 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
         base = mask_num // steps
         remainder = mask_num % steps
 
-        num_transfer_tokens = (
-            torch.zeros(mask_num.size(0), steps, device=mask_index.device, dtype=torch.int64) + base
-        )
+        num_transfer_tokens = torch.zeros(mask_num.size(0), steps, device=mask_index.device, dtype=torch.int64) + base
 
         for i in range(mask_num.size(0)):
-            num_transfer_tokens[i, : remainder[i]] += 1
+            num_transfer_tokens[i, :remainder[i]] += 1
 
         return num_transfer_tokens
 
+
     @torch.no_grad()
-    def generate(self, generation_config: GenerationConfig = None, **kwargs):
+    def generate(
+        self, 
+        generation_config: GenerationConfig = None,
+        **kwargs,
+        ):
         '''
         model_kwargs:
             model: Mask predictor.
@@ -837,20 +810,19 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
             remasking: Remasking strategy. 'low_confidence' or 'random'.
             mask_id: The toke id of [MASK].
         '''
-        generation_config, model_kwargs = super()._prepare_generation_config(
-            generation_config, **kwargs
-        )
+        generation_config, model_kwargs = super()._prepare_generation_config(generation_config, **kwargs)
 
         verbose = 'verbose' in model_kwargs and model_kwargs['verbose']
         prompt = model_kwargs['input_ids']
-        steps = model_kwargs['sample_steps']
-        block_length = model_kwargs['inference_block_size']
-        cfg_scale = model_kwargs['cfg']
-        remasking = model_kwargs['remasking']
-
-        temperature = generation_config.temperature
-        top_p = generation_config.top_p
-        mask_id = self.config.mask_token_id
+        steps=model_kwargs['sample_steps']
+        block_length=model_kwargs['inference_block_size']
+        cfg_scale=model_kwargs['cfg']
+        remasking=model_kwargs['remasking']
+        
+        
+        temperature=generation_config.temperature
+        top_p=generation_config.top_p
+        mask_id=self.config.mask_token_id
 
         if 'max_new_tokens' in kwargs:
             if 'max_length' in kwargs:
@@ -869,57 +841,41 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
                     f"Using `max_position_embeddings` ({self.config.max_position_embeddings})"
                     f"- `input_ids.shape[1]` ({prompt.shape[1]}) = {gen_length} as maximum number of tokens to generate."
                 )
-
+                
         attention_mask = model_kwargs['attention_mask']
         attention_mask = F.pad(attention_mask, (0, gen_length), value=1)
-
-        if cfg_scale > 0.0:
+        
+        if cfg_scale > 0.:
             attention_mask = torch.cat([attention_mask, attention_mask], dim=0)
-
+        
         position_ids = attention_mask.long().cumsum(dim=-1) - 1
         position_ids.masked_fill_(attention_mask == 0, value=1)
+        
+        x = torch.full((prompt.shape[0], prompt.shape[1] + gen_length), mask_id, dtype=torch.long).to(self.device)
+        x[:, :prompt.shape[1]] = prompt.clone()
 
-        x = torch.full(
-            (prompt.shape[0], prompt.shape[1] + gen_length), mask_id, dtype=torch.long
-        ).to(self.device)
-        x[:, : prompt.shape[1]] = prompt.clone()
+        prompt_index = (x != mask_id)
 
-        prompt_index = x != mask_id
-
-        assert (
-            gen_length % block_length == 0
-        ), f"gen_length {gen_length} % block_length {block_length} != 0"
+        assert gen_length % block_length == 0, f"gen_length {gen_length} % block_length {block_length} != 0"
         num_blocks = gen_length // block_length
 
         assert steps % num_blocks == 0, f"steps {steps} % num_blocks {num_blocks} != 0"
         steps = steps // num_blocks
 
         for num_block in range(num_blocks):
-            block_mask_index = (
-                x[
-                    :,
-                    prompt.shape[1]
-                    + num_block * block_length : prompt.shape[1]
-                    + (num_block + 1) * block_length :,
-                ]
-                == mask_id
-            )
+            block_mask_index = (x[:, prompt.shape[1] + num_block * block_length: prompt.shape[1] + (num_block + 1) * block_length:] == mask_id)
             num_transfer_tokens = self.get_num_transfer_tokens(block_mask_index, steps)
             for i in range(steps):
-                mask_index = x == mask_id
-                if cfg_scale > 0.0:
+                mask_index = (x == mask_id)
+                if cfg_scale > 0.:
                     un_x = x.clone()
                     un_x[prompt_index] = mask_id
                     x_ = torch.cat([x, un_x], dim=0)
-                    logits = self(
-                        x_, attention_mask=attention_mask, position_ids=position_ids
-                    ).logits
+                    logits = self(x_, attention_mask=attention_mask, position_ids=position_ids).logits
                     logits, un_logits = torch.chunk(logits, 2, dim=0)
                     logits = un_logits + (cfg_scale + 1) * (logits - un_logits)
                 else:
-                    logits = self(
-                        x, attention_mask=attention_mask, position_ids=position_ids
-                    ).logits
+                    logits = self(x, attention_mask=attention_mask, position_ids=position_ids).logits
 
                 if temperature == 0:
                     x0 = torch.argmax(logits, dim=-1)
@@ -930,7 +886,7 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
                     if top_p is not None and top_p < 1.0:
                         warper = TopPLogitsWarper(top_p)
                         logits_flat = warper(None, logits_flat)
-
+                    
                     scaled_logits = logits_flat / temperature
                     probs = F.softmax(scaled_logits, dim=-1)
                     sampled_tokens = torch.multinomial(probs, num_samples=1)
@@ -939,14 +895,13 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
                 if remasking == 'low_confidence':
                     p = F.softmax(logits.to(torch.float64), dim=-1)
                     x0_p = torch.squeeze(
-                        torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1
-                    )  # b, l
+                        torch.gather(p, dim=-1, index=torch.unsqueeze(x0, -1)), -1) # b, l
                 elif remasking == 'random':
                     x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
                 else:
                     raise NotImplementedError(remasking)
 
-                x0_p[:, prompt.shape[1] + (num_block + 1) * block_length :] = -np.inf
+                x0_p[:, prompt.shape[1] + (num_block + 1) * block_length:] = -np.inf
 
                 x0 = torch.where(mask_index, x0, x)
                 confidence = torch.where(mask_index, x0_p, -np.inf)
@@ -958,6 +913,7 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
                 x[transfer_index] = x0[transfer_index]
 
         return x
+    
 
     @deprecate_kwarg("num_logits_to_keep", version="4.50", new_name="logits_to_keep")
     def forward(
@@ -976,13 +932,9 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
         logits_to_keep: Union[int, torch.Tensor] = 0,
         **kwargs: Unpack[KwargsForCausalLM],
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        output_attentions = (
-            output_attentions if output_attentions is not None else self.config.output_attentions
-        )
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.config.output_hidden_states
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -1003,21 +955,17 @@ class DiffLM(DLMPreTrainedModel, GenerationMixin):
 
         hidden_states = outputs[0]
         # Only compute necessary logits, and do not upcast them to float if we are not computing the loss
-        slice_indices = (
-            slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
-        )
+        slice_indices = slice(-logits_to_keep, None) if isinstance(logits_to_keep, int) else logits_to_keep
         logits = self.lm_head(hidden_states[:, slice_indices, :])
-
+        
         loss = None
         if labels is not None:
-            loss = self.loss_function(
-                logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs
-            )
+            loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
-
+        
         return CausalLMOutputWithPast(
             loss=loss,
             logits=logits,

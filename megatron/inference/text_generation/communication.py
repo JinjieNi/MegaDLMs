@@ -5,7 +5,8 @@
 
 import torch
 
-from megatron.core import mpu, parallel_state
+from megatron.core import parallel_state
+from megatron.core import mpu
 
 
 # TODO: use functions from megatron/p2p
@@ -15,14 +16,13 @@ def recv_from_prev_pipeline_rank_(recv_buffer=None):
     if not mpu.is_pipeline_first_stage():
         assert recv_buffer is not None
         recv_prev_op = torch.distributed.P2POp(
-            torch.distributed.irecv, recv_buffer, mpu.get_pipeline_model_parallel_prev_rank()
-        )
+            torch.distributed.irecv, recv_buffer,
+            mpu.get_pipeline_model_parallel_prev_rank())
         reqs = torch.distributed.batch_isend_irecv([recv_prev_op])
         for req in reqs:
             req.wait()
         # To protect against race condition when using batch_isend_irecv().
         torch.cuda.synchronize()
-
 
 # TODO: use functions from megatron/p2p
 def send_to_next_pipeline_rank(tensor=None):
@@ -30,13 +30,14 @@ def send_to_next_pipeline_rank(tensor=None):
     if not mpu.is_pipeline_last_stage():
         assert tensor is not None
         send_next_op = torch.distributed.P2POp(
-            torch.distributed.isend, tensor, mpu.get_pipeline_model_parallel_next_rank()
-        )
+            torch.distributed.isend, tensor,
+            mpu.get_pipeline_model_parallel_next_rank())
         reqs = torch.distributed.batch_isend_irecv([send_next_op])
         for req in reqs:
             req.wait()
         # To protect against race condition when using batch_isend_irecv().
         torch.cuda.synchronize()
+
 
 
 def _is_cuda(tensor):
@@ -45,10 +46,12 @@ def _is_cuda(tensor):
     assert tensor.is_cuda
 
 
+
 def _is_cuda_contiguous(tensor):
     """Check if a tensor is not none, is cuda, and is contiguous."""
     _is_cuda(tensor)
     assert tensor.is_contiguous()
+
 
 
 def broadcast_from_last_pipeline_stage(size, dtype, tensor=None):
@@ -63,7 +66,9 @@ def broadcast_from_last_pipeline_stage(size, dtype, tensor=None):
     if is_last_stage:
         _is_cuda_contiguous(tensor)
     else:
-        tensor = torch.empty(size, dtype=dtype, device=torch.cuda.current_device())
+        tensor = torch.empty(size,
+                             dtype=dtype,
+                             device=torch.cuda.current_device())
     # Get the group and corresponding source rank.
     src = mpu.get_pipeline_model_parallel_last_rank()
     group = mpu.get_pipeline_model_parallel_group()
@@ -79,13 +84,13 @@ def _send_and_recv_from_last_to_first_pipeline_stage(tensor=None):
     if is_last_stage or is_first_stage:
         if is_first_stage:
             recv_prev_op = torch.distributed.P2POp(
-                torch.distributed.irecv, tensor, mpu.get_pipeline_model_parallel_last_rank()
-            )
+                torch.distributed.irecv, tensor,
+                mpu.get_pipeline_model_parallel_last_rank())
             reqs = torch.distributed.batch_isend_irecv([recv_prev_op])
         elif is_last_stage:
             send_next_op = torch.distributed.P2POp(
-                torch.distributed.isend, tensor, mpu.get_pipeline_model_parallel_first_rank()
-            )
+                torch.distributed.isend, tensor,
+                mpu.get_pipeline_model_parallel_first_rank())
             reqs = torch.distributed.batch_isend_irecv([send_next_op])
 
         for req in reqs:
@@ -110,12 +115,15 @@ def broadcast_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
         if is_last_stage:
             _is_cuda_contiguous(tensor)
         else:
-            tensor = torch.empty(size, dtype=dtype, device=torch.cuda.current_device())
+            tensor = torch.empty(size,
+                                 dtype=dtype,
+                                 device=torch.cuda.current_device())
         tensor = _send_and_recv_from_last_to_first_pipeline_stage(tensor)
     else:
         tensor = None
 
     return tensor
+
 
 
 def copy_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
@@ -138,11 +146,14 @@ def copy_from_last_to_first_pipeline_stage(size, dtype, tensor=None):
             if is_last_stage:
                 tensor_ = tensor.contiguous()
             else:
-                tensor_ = torch.empty(size, dtype=dtype, device=torch.cuda.current_device())
+                tensor_ = torch.empty(size,
+                                      dtype=dtype,
+                                      device=torch.cuda.current_device())
         tensor_ = _send_and_recv_from_last_to_first_pipeline_stage(tensor_)
         # Update the first stage tensor
         if is_first_stage and not is_contiguous:
             tensor[...] = tensor_
+
 
 
 def broadcast_tensor(size, dtype, tensor=None, rank=0, data_parallel=False):
@@ -158,7 +169,9 @@ def broadcast_tensor(size, dtype, tensor=None, rank=0, data_parallel=False):
     if torch.distributed.get_rank() == rank:
         _is_cuda_contiguous(tensor)
     else:
-        tensor = torch.empty(size, dtype=dtype, device=torch.cuda.current_device())
+        tensor = torch.empty(size,
+                             dtype=dtype,
+                             device=torch.cuda.current_device())
 
     group = None
     if data_parallel:
@@ -167,6 +180,7 @@ def broadcast_tensor(size, dtype, tensor=None, rank=0, data_parallel=False):
     torch.distributed.broadcast(tensor, rank, group=group)
 
     return tensor
+
 
 
 def broadcast_list(size, dtype, list_values=None, rank=0, data_parallel=False):
@@ -180,14 +194,17 @@ def broadcast_list(size, dtype, list_values=None, rank=0, data_parallel=False):
 
     if data_parallel:
         if parallel_state.get_model_parallel_src_rank() == torch.distributed.get_rank():
-            tensor = torch.tensor(list_values, dtype=dtype, device=torch.cuda.current_device())
+            tensor = torch.tensor(list_values, dtype=dtype,
+                                  device=torch.cuda.current_device())
 
         rank = parallel_state.get_model_parallel_src_rank()
     else:
         if torch.distributed.get_rank() == rank:
-            tensor = torch.tensor(list_values, dtype=dtype, device=torch.cuda.current_device())
+            tensor = torch.tensor(list_values, dtype=dtype,
+                                  device=torch.cuda.current_device())
 
     return broadcast_tensor(size, dtype, tensor=tensor, rank=rank, data_parallel=data_parallel)
+
 
 
 def broadcast_int_list(size, int_list=None, rank=0, data_parallel=False):
@@ -197,9 +214,8 @@ def broadcast_int_list(size, int_list=None, rank=0, data_parallel=False):
         data_parallel (bool): Broadcast across a single data parallel model replica.
     """
 
-    return broadcast_list(
-        size, torch.int64, list_values=int_list, rank=rank, data_parallel=data_parallel
-    )
+    return broadcast_list(size, torch.int64, list_values=int_list, rank=rank, data_parallel=data_parallel)
+
 
 
 def broadcast_float_list(size, float_list=None, rank=0, data_parallel=False):
@@ -209,6 +225,5 @@ def broadcast_float_list(size, float_list=None, rank=0, data_parallel=False):
         data_parallel (bool): Broadcast across a single data parallel model replica.
     """
 
-    return broadcast_list(
-        size, torch.float32, list_values=float_list, rank=rank, data_parallel=data_parallel
-    )
+    return broadcast_list(size, torch.float32, list_values=float_list,
+                          rank=rank, data_parallel=data_parallel)

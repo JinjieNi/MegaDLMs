@@ -36,101 +36,36 @@ stored therein will not be removed when the conversion succeeds.
 
 # TODO: if you are using the newest megatron or transformer engine, you need to change some arguments and state dict key names
 
-import os
 import re
-import shutil
 import sys
-from argparse import ArgumentParser, Namespace
+import shutil
+import os
 from pathlib import Path
 from typing import Optional
+from argparse import ArgumentParser, Namespace
 
 import torch
 from tqdm.auto import trange
-from transformers import AutoModelForCausalLM, AutoTokenizer, LlamaTokenizer
-from utils.merge_llama import merge_llama
+from transformers import AutoModelForCausalLM, LlamaTokenizer, AutoTokenizer
+
 from utils.permute_qkv import permute_qkv, permute_qkv_bias
+from utils.merge_llama import merge_llama
+
 
 llama_s2layer = {7: 32, 13: 40, 30: 60, 34: 48, 65: 80, 70: 80}
 llama_s2heads = {7: 32, 13: 40, 30: 52, 34: 64, 65: 64, 70: 64}
-llama_s2dense = {
-    7: 11008,
-    13: 13824,
-    30: 17920,
-    34: 22016,
-    65: 22016,
-    70: 28672,
-}  # should be (2/3)*4*d, but it isn't exaclty that
+llama_s2dense = {7: 11008, 13: 13824, 30: 17920, 34: 22016, 65: 22016,
+                 70: 28672}  # should be (2/3)*4*d, but it isn't exaclty that
 llama_s2hidden = {7: 4096, 13: 5120, 30: 6656, 34: 8192, 65: 8192, 70: 8192}
 
 
-qwen_s2layer = {
-    5: 24,
-    24: 48,
-    15: 28,
-    7: 28,
-    8: 32,
-    14: 48,
-    18: 64,
-    20: 64,
-    32: 64,
-}  # num_hidden_layers
-qwen_s2heads = {
-    5: 14,
-    24: 14,
-    15: 12,
-    7: 28,
-    8: 28,
-    14: 40,
-    18: 40,
-    20: 40,
-    32: 40,
-}  # num_attention_heads
-qwen_s2kvheads = {5: 2, 24: 2, 15: 2, 7: 4, 8: 4, 14: 8, 18: 8, 20: 8, 32: 8}  # num_key_value_heads
-qwen_s2dense = {
-    5: 4864,
-    24: 4864,
-    15: 8960,
-    7: 18944,
-    8: 18944,
-    14: 13824,
-    18: 13824,
-    20: 13824,
-    32: 27648,
-}  # intermediate_size
-qwen_s2hidden = {
-    5: 896,
-    24: 896,
-    15: 1536,
-    7: 3584,
-    8: 3584,
-    14: 5120,
-    18: 5120,
-    20: 5120,
-    32: 5120,
-}  # hidden_size
-qwen_s2rope = {
-    5: 1e6,
-    24: 1e6,
-    15: 1e6,
-    7: 1e6,
-    8: 1e6,
-    14: 1e6,
-    18: 1e6,
-    20: 1e6,
-    32: 1e6,
-}  # rope_theta
-qwen_s2vocab = {
-    5: 151936,
-    24: 151936,
-    15: 151936,
-    7: 152064,
-    8: 152064,
-    14: 152064,
-    18: 152064,
-    20: 152064,
-    32: 152064,
-}  # padded_vocab_size
-
+qwen_s2layer = {5: 24, 24: 48, 15: 28, 7: 28, 8: 32, 14: 48, 18: 64, 20: 64, 32: 64} #num_hidden_layers
+qwen_s2heads = {5: 14, 24: 14, 15: 12, 7: 28, 8: 28, 14: 40, 18: 40, 20: 40, 32: 40} #num_attention_heads
+qwen_s2kvheads = {5: 2, 24: 2, 15: 2, 7: 4, 8: 4, 14: 8, 18: 8, 20: 8, 32: 8} #num_key_value_heads
+qwen_s2dense = {5: 4864, 24: 4864, 15: 8960, 7: 18944, 8: 18944, 14: 13824, 18: 13824, 20: 13824, 32: 27648} #intermediate_size
+qwen_s2hidden = {5: 896, 24: 896, 15: 1536, 7: 3584, 8: 3584, 14: 5120, 18: 5120, 20: 5120, 32: 5120} #hidden_size
+qwen_s2rope = {5: 1e6, 24: 1e6, 15: 1e6, 7: 1e6, 8: 1e6, 14: 1e6, 18: 1e6, 20: 1e6, 32: 1e6} #rope_theta
+qwen_s2vocab = {5: 151936, 24: 151936, 15: 151936, 7: 152064, 8: 152064, 14: 152064, 18: 152064, 20: 152064, 32: 152064} #padded_vocab_size
 
 def falcon_to_megatron(weights: dict, size: int) -> dict:
     def permute(qkv_w):
@@ -150,7 +85,8 @@ def falcon_to_megatron(weights: dict, size: int) -> dict:
         n_heads_kv = 8
 
     # weights independent of layers (i.e. token embeddings and layernorms
-    assert torch.allclose(weights["lm_head.weight"], weights["transformer.word_embeddings.weight"])
+    assert torch.allclose(weights["lm_head.weight"],
+                          weights["transformer.word_embeddings.weight"])
     embedding["word_embeddings.weight"] = weights["transformer.word_embeddings.weight"]
     transformer["final_layernorm.weight"] = weights["transformer.ln_f.weight"]
     transformer["final_layernorm.bias"] = weights["transformer.ln_f.bias"]
@@ -160,37 +96,36 @@ def falcon_to_megatron(weights: dict, size: int) -> dict:
         prefix1 = f"layers.{layer}"
         prefix2 = f"transformer.h.{layer}"
         # mlp
-        transformer[f"{prefix1}.mlp.dense_h_to_4h.weight"] = weights[
-            f"{prefix2}.mlp.dense_h_to_4h.weight"
-        ]
-        transformer[f"{prefix1}.mlp.dense_4h_to_h.weight"] = weights[
-            f"{prefix2}.mlp.dense_4h_to_h.weight"
-        ]
+        transformer[f"{prefix1}.mlp.dense_h_to_4h.weight"] = \
+            weights[f"{prefix2}.mlp.dense_h_to_4h.weight"]
+        transformer[f"{prefix1}.mlp.dense_4h_to_h.weight"] = \
+            weights[f"{prefix2}.mlp.dense_4h_to_h.weight"]
         # qkv weights
-        transformer[f"{prefix1}.attention.query_key_value.weight"] = permute(
-            weights[f"{prefix2}.self_attention.query_key_value.weight"]
-        )
+        transformer[f"{prefix1}.attention.query_key_value.weight"] = \
+            permute(weights[f"{prefix2}.self_attention.query_key_value.weight"])
         # dense
-        transformer[f"{prefix1}.attention.dense.weight"] = weights[
-            f"{prefix2}.self_attention.dense.weight"
-        ]
+        transformer[f"{prefix1}.attention.dense.weight"] = \
+            weights[f"{prefix2}.self_attention.dense.weight"]
         # falcon7 and falcon40 differ in the input layernorms
         if size == 7:
-            transformer[f"{prefix1}.input_layernorm.weight"] = weights[
-                f"{prefix2}.input_layernorm.weight"
-            ]
-            transformer[f"{prefix1}.input_layernorm.bias"] = weights[
-                f"{prefix2}.input_layernorm.bias"
-            ]
+            transformer[f"{prefix1}.input_layernorm.weight"] = \
+                weights[f"{prefix2}.input_layernorm.weight"]
+            transformer[f"{prefix1}.input_layernorm.bias"] = \
+                weights[f"{prefix2}.input_layernorm.bias"]
         else:
-            transformer[f"{prefix1}.input_layernorm.weight"] = weights[f"{prefix2}.ln_attn.weight"]
-            transformer[f"{prefix1}.mlp_layernorm.weight"] = weights[f"{prefix2}.ln_mlp.weight"]
-            transformer[f"{prefix1}.input_layernorm.bias"] = weights[f"{prefix2}.ln_attn.bias"]
-            transformer[f"{prefix1}.mlp_layernorm.bias"] = weights[f"{prefix2}.ln_mlp.bias"]
+            transformer[f"{prefix1}.input_layernorm.weight"] = \
+                weights[f"{prefix2}.ln_attn.weight"]
+            transformer[f"{prefix1}.mlp_layernorm.weight"] = \
+                weights[f"{prefix2}.ln_mlp.weight"]
+            transformer[f"{prefix1}.input_layernorm.bias"] = \
+                weights[f"{prefix2}.ln_attn.bias"]
+            transformer[f"{prefix1}.mlp_layernorm.bias"] = \
+                weights[f"{prefix2}.ln_mlp.bias"]
     return {"embedding": embedding, "transformer": transformer}
 
 
-def llama_to_megatron(weights: dict, size: int, source: str = "meta", version: int = 1) -> dict:
+def llama_to_megatron(weights: dict, size: int, source: str = "meta",
+                      version: int = 1) -> dict:
     def permute(qkv_w):
         if source == "hf":
             return permute_qkv(qkv_w, hidden, n_heads, n_kv_heads)
@@ -203,10 +138,10 @@ def llama_to_megatron(weights: dict, size: int, source: str = "meta", version: i
         assert len(wq) == n_heads
         assert len(wk) == n_kv_heads
         assert len(wv) == n_kv_heads
-        n_qs_per_kv = n_heads // n_kv_heads
+        n_qs_per_kv = n_heads//n_kv_heads
         w_qkv = []
         for i in range(n_kv_heads):
-            w_qkv += [wq[i * n_qs_per_kv + j] for j in range(n_qs_per_kv)]
+            w_qkv += [wq[i*n_qs_per_kv + j] for j in range(n_qs_per_kv)]
             w_qkv += [wk[i], wv[i]]
         return permute(torch.concat(w_qkv))
 
@@ -214,7 +149,7 @@ def llama_to_megatron(weights: dict, size: int, source: str = "meta", version: i
     n_layer = llama_s2layer[size]
     hidden = llama_s2hidden[size]
     n_heads = llama_s2heads[size]
-    n_hidden_per_head = hidden // n_heads
+    n_hidden_per_head = hidden//n_heads
     n_kv_heads = n_heads if version == 1 or size <= 13 else 8
 
     # weights independent of layers
@@ -226,26 +161,24 @@ def llama_to_megatron(weights: dict, size: int, source: str = "meta", version: i
     for layer in trange(n_layer, desc="Converting weights"):
         prefix = f"layers.{layer}"
         # identical weights
-        transformer[f"{prefix}.attention.dense.weight"] = weights[f"{prefix}.attention.wo.weight"]
-        transformer[f"{prefix}.post_attention_layernorm.weight"] = weights[
-            f"{prefix}.ffn_norm.weight"
-        ]
-        transformer[f"{prefix}.input_layernorm.weight"] = weights[f"{prefix}.attention_norm.weight"]
-        transformer[f"{prefix}.mlp.dense_4h_to_h.weight"] = weights[
-            f"{prefix}.feed_forward.w2.weight"
-        ]
+        transformer[f"{prefix}.attention.dense.weight"] = \
+            weights[f"{prefix}.attention.wo.weight"]
+        transformer[f"{prefix}.post_attention_layernorm.weight"] = \
+            weights[f"{prefix}.ffn_norm.weight"]
+        transformer[f"{prefix}.input_layernorm.weight"] = \
+            weights[f"{prefix}.attention_norm.weight"]
+        transformer[f"{prefix}.mlp.dense_4h_to_h.weight"] = \
+            weights[f"{prefix}.feed_forward.w2.weight"]
         # concatenate up, gate mlp weights
-        transformer[f"{prefix}.mlp.dense_h_to_4h.weight"] = torch.concat(
-            [
-                weights[f"{prefix}.feed_forward.w3.weight"],
-                weights[f"{prefix}.feed_forward.w1.weight"],
-            ]
-        )
+        transformer[f"{prefix}.mlp.dense_h_to_4h.weight"] = torch.concat([
+            weights[f"{prefix}.feed_forward.w3.weight"],
+            weights[f"{prefix}.feed_forward.w1.weight"]
+        ])
         # finally, qkv requires serious manipulation to get right
         transformer[f"{prefix}.attention.query_key_value.weight"] = rearrange_qkv(
             weights[f"{prefix}.attention.wq.weight"],
             weights[f"{prefix}.attention.wk.weight"],
-            weights[f"{prefix}.attention.wv.weight"],
+            weights[f"{prefix}.attention.wv.weight"]
         )
 
         # release references to original weights (free mem)
@@ -255,12 +188,12 @@ def llama_to_megatron(weights: dict, size: int, source: str = "meta", version: i
         del weights[f"{prefix}.attention.wk.weight"]
         del weights[f"{prefix}.attention.wv.weight"]
 
-    return {"embedding": embedding, "transformer": transformer, "lm_head": lm_head}
+    return {"embedding": embedding, "transformer": transformer,
+            "lm_head": lm_head}
 
 
 def mistral_to_megatron(weights: dict, size: int) -> dict:
     assert size == 7
-
     def permute(qkv_w):
         # if source == "hf":
         # by default, we pull mistrals weights from huggingface
@@ -274,10 +207,10 @@ def mistral_to_megatron(weights: dict, size: int) -> dict:
         assert len(wq) == n_heads
         assert len(wk) == n_kv_heads
         assert len(wv) == n_kv_heads
-        n_qs_per_kv = n_heads // n_kv_heads
+        n_qs_per_kv = n_heads//n_kv_heads
         w_qkv = []
         for i in range(n_kv_heads):
-            w_qkv += [wq[i * n_qs_per_kv + j] for j in range(n_qs_per_kv)]
+            w_qkv += [wq[i*n_qs_per_kv + j] for j in range(n_qs_per_kv)]
             w_qkv += [wk[i], wv[i]]
         return permute(torch.concat(w_qkv))
 
@@ -301,30 +234,24 @@ def mistral_to_megatron(weights: dict, size: int) -> dict:
         prefix = f"layers.{layer}"
         hf_prefix = f"model.{prefix}"
         # identical weights
-        transformer[f"{prefix}.attention.dense.weight"] = weights[
-            f"{hf_prefix}.self_attn.o_proj.weight"
-        ]
-        transformer[f"{prefix}.post_attention_layernorm.weight"] = weights[
-            f"{hf_prefix}.post_attention_layernorm.weight"
-        ]
-        transformer[f"{prefix}.input_layernorm.weight"] = weights[
-            f"{hf_prefix}.input_layernorm.weight"
-        ]
-        transformer[f"{prefix}.mlp.dense_4h_to_h.weight"] = weights[
-            f"{hf_prefix}.mlp.down_proj.weight"
-        ]
+        transformer[f"{prefix}.attention.dense.weight"] = \
+            weights[f"{hf_prefix}.self_attn.o_proj.weight"]
+        transformer[f"{prefix}.post_attention_layernorm.weight"] = \
+            weights[f"{hf_prefix}.post_attention_layernorm.weight"]
+        transformer[f"{prefix}.input_layernorm.weight"] = \
+            weights[f"{hf_prefix}.input_layernorm.weight"]
+        transformer[f"{prefix}.mlp.dense_4h_to_h.weight"] = \
+            weights[f"{hf_prefix}.mlp.down_proj.weight"]
         # concatenate up, gate mlp weights
-        transformer[f"{prefix}.mlp.dense_h_to_4h.weight"] = torch.concat(
-            [
-                weights[f"{hf_prefix}.mlp.up_proj.weight"],  # w3
-                weights[f"{hf_prefix}.mlp.gate_proj.weight"],  # w1
-            ]
-        )
+        transformer[f"{prefix}.mlp.dense_h_to_4h.weight"] = torch.concat([
+            weights[f"{hf_prefix}.mlp.up_proj.weight"],  # w3
+            weights[f"{hf_prefix}.mlp.gate_proj.weight"]  # w1
+        ])
         # finally, qkv requires serious manipulation to get right (probably same as llama-2)
         transformer[f"{prefix}.attention.query_key_value.weight"] = rearrange_qkv(
             weights[f"{hf_prefix}.self_attn.q_proj.weight"],
             weights[f"{hf_prefix}.self_attn.k_proj.weight"],
-            weights[f"{hf_prefix}.self_attn.v_proj.weight"],
+            weights[f"{hf_prefix}.self_attn.v_proj.weight"]
         )
 
         # release references to original weights (free mem)
@@ -334,49 +261,52 @@ def mistral_to_megatron(weights: dict, size: int) -> dict:
         del weights[f"{hf_prefix}.self_attn.k_proj.weight"]
         del weights[f"{hf_prefix}.self_attn.v_proj.weight"]
 
-    return {"embedding": embedding, "transformer": transformer, "lm_head": lm_head}
+    return {"embedding": embedding, "transformer": transformer,
+            "lm_head": lm_head}
 
 
 def qwen_to_megatron(weights: dict, size: int) -> dict:
     def permute(qkv_w, hidden, n_heads, n_kv_heads):
         return permute_qkv(qkv_w, hidden, n_heads, n_kv_heads)
 
+    
     def rearrange_qkv(wq, wk, wv, n_kv_heads, n_heads, n_hidden_per_head):
         np = n_heads
         ng = n_kv_heads
         hn = n_hidden_per_head
         h = n_hidden_per_head * np
-
+        
         wq = wq.view(ng, -1, h)
         wk = wk.view(ng, -1, h)
         wv = wv.view(ng, -1, h)
-
-        assert wq.shape == (ng, h // ng, h)
+        
+        assert wq.shape == (ng, h//ng, h)
         assert wk.shape == (ng, hn, h)
         assert wv.shape == (ng, hn, h)
 
         w_qkv = torch.cat([wq, wk, wv], dim=1)
-        assert w_qkv.shape == (ng, h // ng + 2 * hn, h)
-
+        assert w_qkv.shape == (ng, h//ng + 2*hn, h)
+        
         return w_qkv.contiguous().view(-1, h)
-
+        
+    
     def rearrange_qkv_bias(bq, bk, bv, n_kv_heads, n_heads, n_hidden_per_head):
         np = n_heads
         ng = n_kv_heads
         hn = n_hidden_per_head
         h = n_hidden_per_head * np
-
+        
         bq = bq.view(ng, -1)
         bk = bk.view(ng, -1)
         bv = bv.view(ng, -1)
 
-        assert bq.shape == (ng, h // ng)
+        assert bq.shape == (ng, h//ng)
         assert bk.shape == (ng, hn)
         assert bv.shape == (ng, hn)
 
         b_qkv = torch.cat([bq, bk, bv], dim=1)
-        assert b_qkv.shape == (ng, h // ng + 2 * hn)
-
+        assert b_qkv.shape == (ng, h//ng + 2*hn)
+        
         return b_qkv.contiguous().view(-1)
 
     n_layer = qwen_s2layer[size]
@@ -384,18 +314,15 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
     n_heads = qwen_s2heads[size]
     n_kv_heads = qwen_s2kvheads[size]
 
-    n_hidden_per_head = hidden // n_heads  # 64 = 1024 / 16
+    n_hidden_per_head = hidden // n_heads # 64 = 1024 / 16
 
     # randomize the loaded weights for debugging
     if args.save_random_weights:
-        print(
-            "Randomizing the loaded weights for debugging! You should pay attenion to this if you don't want a random checkpoint.\n"
-            * 10
-        )
+        print("Randomizing the loaded weights for debugging! You should pay attenion to this if you don't want a random checkpoint.\n"*10)
         for key, value in weights.items():
             if "weight" in key:
                 weights[key] = torch.randn_like(value)
-
+    
     print('embedding size', weights["model.embed_tokens.weight"].size())
     # # weights independent of layers
     # if size==5:
@@ -411,30 +338,25 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
         prefix = f"decoder.layers.{layer}"
         hf_prefix = f"model.layers.{layer}"
         # identical weights
-        transformer[f"{prefix}.self_attention.linear_proj.weight"] = weights[
-            f"{hf_prefix}.self_attn.o_proj.weight"
-        ]
-        transformer[f"{prefix}.self_attention.linear_proj._extra_state"] = (
-            None  # _extra_state is used to store the intermediate state of transformer engine
-        )
-        transformer[f"{prefix}.mlp.linear_fc1.layer_norm_weight"] = weights[
-            f"{hf_prefix}.post_attention_layernorm.weight"
-        ]
-        transformer[f"{prefix}.self_attention.linear_qkv.layer_norm_weight"] = weights[
-            f"{hf_prefix}.input_layernorm.weight"
-        ]
-        transformer[f"{prefix}.mlp.linear_fc2.weight"] = weights[
-            f"{hf_prefix}.mlp.down_proj.weight"
-        ]
-        transformer[f"{prefix}.mlp.linear_fc2._extra_state"] = None
+        transformer[f"{prefix}.self_attention.linear_proj.weight"] = \
+            weights[f"{hf_prefix}.self_attn.o_proj.weight"]
+        transformer[f"{prefix}.self_attention.linear_proj._extra_state"] = \
+            None # _extra_state is used to store the intermediate state of transformer engine
+        transformer[f"{prefix}.mlp.linear_fc1.layer_norm_weight"] = \
+            weights[f"{hf_prefix}.post_attention_layernorm.weight"]
+        transformer[f"{prefix}.self_attention.linear_qkv.layer_norm_weight"] = \
+            weights[f"{hf_prefix}.input_layernorm.weight"]
+        transformer[f"{prefix}.mlp.linear_fc2.weight"] = \
+            weights[f"{hf_prefix}.mlp.down_proj.weight"]
+        transformer[f"{prefix}.mlp.linear_fc2._extra_state"] = \
+            None
         # concatenate up, gate mlp weights
-        transformer[f"{prefix}.mlp.linear_fc1.weight"] = torch.concat(
-            [
-                weights[f"{hf_prefix}.mlp.gate_proj.weight"],  # w3
-                weights[f"{hf_prefix}.mlp.up_proj.weight"],  # w1
-            ]
-        )
-        transformer[f"{prefix}.mlp.linear_fc1._extra_state"] = None
+        transformer[f"{prefix}.mlp.linear_fc1.weight"] = torch.concat([
+            weights[f"{hf_prefix}.mlp.gate_proj.weight"],  # w3
+            weights[f"{hf_prefix}.mlp.up_proj.weight"]  # w1
+        ])
+        transformer[f"{prefix}.mlp.linear_fc1._extra_state"] = \
+            None
         # finally, qkv requires serious manipulation to get right (probably same as llama-2)
         transformer[f"{prefix}.self_attention.linear_qkv.weight"] = rearrange_qkv(
             weights[f"{hf_prefix}.self_attn.q_proj.weight"],
@@ -444,9 +366,11 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
             n_heads,
             n_hidden_per_head,
         )
-        transformer[f"{prefix}.self_attention.linear_qkv._extra_state"] = None
-
-        transformer[f"{prefix}.self_attention.core_attention._extra_state"] = None
+        transformer[f"{prefix}.self_attention.linear_qkv._extra_state"] = \
+            None
+        
+        transformer[f"{prefix}.self_attention.core_attention._extra_state"] = \
+            None
         # release references to original weights (free mem)
         del weights[f"{hf_prefix}.mlp.up_proj.weight"]
         del weights[f"{hf_prefix}.mlp.gate_proj.weight"]
@@ -462,22 +386,17 @@ def qwen_to_megatron(weights: dict, size: int) -> dict:
             n_heads,
             n_hidden_per_head,
         )
-
+        
         del weights[f"{hf_prefix}.self_attn.q_proj.bias"]
         del weights[f"{hf_prefix}.self_attn.k_proj.bias"]
         del weights[f"{hf_prefix}.self_attn.v_proj.bias"]
 
+
     return transformer
 
 
-def main(
-    model_name: str = "falcon",
-    size: int = 7,
-    out: Optional[Path] = None,
-    cache_dir: Optional[Path] = None,
-    model_path: Optional[str] = None,
-    not_tie: bool = True,
-):
+def main(model_name: str = "falcon", size: int = 7, out: Optional[Path] = None,
+         cache_dir: Optional[Path] = None, model_path: Optional[str] = None, not_tie: bool=True):
     output_path = str(out)
     if out is None:
         out = Path(f"falcon{size}b_megatron.pt").absolute()
@@ -489,10 +408,11 @@ def main(
         raise NotImplementedError("Falcon is not implemented yet")
         print("Fetching weights from huggingface")
         if model_path is None:
-            model_path = (f"tiiuae/falcon-{size}b",)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path, trust_remote_code=True, cache_dir=cache_dir, torch_dtype="auto"
-        )
+            model_path = f"tiiuae/falcon-{size}b",
+        model = AutoModelForCausalLM.from_pretrained(model_path,
+                                                     trust_remote_code=True,
+                                                     cache_dir=cache_dir,
+                                                     torch_dtype="auto")
         hf_weights = model.state_dict()
     elif model_name == "mistral":
         raise NotImplementedError("Mistral is not implemented yet")
@@ -502,22 +422,24 @@ def main(
         else:
             print("Fetching weights from disk")
 
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path, trust_remote_code=True, cache_dir=cache_dir, torch_dtype="auto"
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_path,
+                                                    trust_remote_code=True,
+                                                    cache_dir=cache_dir,
+                                                    torch_dtype="auto")
         hf_weights = model.state_dict()
     elif model_name == "qwen" or model_name == "qwen_2_5_math":
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path, trust_remote_code=True, cache_dir=cache_dir, torch_dtype="auto"
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_path,
+                                                    trust_remote_code=True,
+                                                    cache_dir=cache_dir,
+                                                    torch_dtype="auto")
         hf_weights = model.state_dict()
     else:
         raise NotImplementedError("Llama is not implemented yet")
         print("Getting llama...")
         version = 2 if "2" in model_name else 1
-        hf_weights, llama_source = merge_llama(
-            size, version, root_dir=cache_dir, model_path=model_path
-        )
+        hf_weights, llama_source = merge_llama(size, version, root_dir=cache_dir,
+                                               model_path=model_path)
+
 
     # convert state dict to be megatron-compatible
     if model_name == "falcon":
@@ -529,38 +451,23 @@ def main(
     elif model_name == "gemma":
         megatron_weights = gemma_to_megatron(hf_weights, size)
     else:
-        megatron_weights = llama_to_megatron(
-            hf_weights, size, llama_source, version=1 if model_name == "llama" else 2
-        )
+        megatron_weights = llama_to_megatron(hf_weights, size, llama_source,
+                                             version=1 if model_name == "llama" else 2)
 
     # set args
     dtype = megatron_weights["embedding.word_embeddings.weight"].dtype
     if model_name == "falcon":
         if size == 7:
-            args = {
-                "num_layers": 32,
-                "hidden_size": 4544,
-                "num_attention_heads": 71,
-                "num_attention_heads_kv": 1,
-            }
+            args = {"num_layers": 32, "hidden_size": 4544,
+                    "num_attention_heads": 71, "num_attention_heads_kv": 1}
         else:
-            args = {
-                "num_layers": 60,
-                "hidden_size": 8192,
-                "num_attention_heads": 128,
-                "num_attention_heads_kv": 8,
-                "parallel_layernorm": True,
-            }
-        args.update(
-            {
-                "tokenizer_type": "FalconTokenizer",
-                "use_flash_attn": True,
-                "hidden_dropout": 0.0,
-                "parallel_attn": True,
-                "max_position_embeddings": 2048,
-                "seq_length": 2048,
-            }
-        )
+            args = {"num_layers": 60, "hidden_size": 8192,
+                    "num_attention_heads": 128, "num_attention_heads_kv": 8,
+                    "parallel_layernorm": True}
+        args.update({"tokenizer_type": "FalconTokenizer", "use_flash_attn": True,
+                     "hidden_dropout": 0.0,
+                     "parallel_attn": True, "max_position_embeddings": 2048,
+                     "seq_length": 2048})
     elif model_name == "mistral":
         assert size == 7
         # mistral-7b mostly uses the same args as llama-7b
@@ -586,26 +493,26 @@ def main(
         }
     elif model_name == "qwen":
         args = {
-            "num_layers": qwen_s2layer[size],  # config
-            "hidden_size": qwen_s2hidden[size],  # config
-            "num_attention_heads": qwen_s2heads[size],  # config
+            "num_layers": qwen_s2layer[size], #config
+            "hidden_size": qwen_s2hidden[size], #config
+            "num_attention_heads": qwen_s2heads[size], #config
             "group_query_attention": True,
             "num_query_groups": qwen_s2kvheads[size],  # config
             "ffn_hidden_size": qwen_s2dense[size],  # config
-            # "parallel_attn": False, #no
+            # "parallel_attn": False, #no 
             # "parallel_layernorm": True,
-            "make_vocab_size_divisible_by": 128,  # no
+            "make_vocab_size_divisible_by": 128, #no
             "swiglu": True,  # hf document
-            "vocab_size": qwen_s2vocab[size],  # config
+            "vocab_size": qwen_s2vocab[size], #config
             "padded_vocab_size": qwen_s2vocab[size],
-            "normalization": 'RMSNorm',  # hf document
-            "untie_embeddings_and_output_weights": False if size in [3, 5, 15] else True,  # config
-            "tokenizer_type": "HuggingFaceTokenizer",  # no
+            "normalization": 'RMSNorm', # hf document
+            "untie_embeddings_and_output_weights": False if size in [3, 5, 15] else True, #config
+            "tokenizer_type": "HuggingFaceTokenizer", #no
             # "tokenizer_type": "Qwen2Tokenizer", #no
-            "max_position_embeddings": 131072,  # config
-            # "seq_length": 32768, #no
-            "norm_epsilon": 1e-6,  # config
-            "rotary_base": qwen_s2rope[size],  # config
+            "max_position_embeddings": 131072, #config
+            # "seq_length": 32768, #no 
+            "norm_epsilon": 1e-6, #config
+            "rotary_base": qwen_s2rope[size], #config
             "add_bias_linear": False,
             "add_qkv_bias": True,
             # "sliding_window_size": 32768, #config
@@ -614,31 +521,29 @@ def main(
             "hidden_dropout": 0.0,
             "attention_dropout": 0.0,
         }
-        assert (
-            qwen_s2vocab[size] % 128 == 0
-        ), "Determine the vocab_size value in the huggingface config.json and the real vocab size in the tokenizer.json file. If both of them are not divisible by 128, set the make_vocab_size_divisible_by to 1. Your initialized model class should match the checkpoint size."
+        assert qwen_s2vocab[size] % 128 == 0, "Determine the vocab_size value in the huggingface config.json and the real vocab size in the tokenizer.json file. If both of them are not divisible by 128, set the make_vocab_size_divisible_by to 1. Your initialized model class should match the checkpoint size."
     elif model_name == "qwen_2_5_math":
         args = {
-            "num_layers": qwen_s2layer[size],  # config
-            "hidden_size": qwen_s2hidden[size],  # config
-            "num_attention_heads": qwen_s2heads[size],  # config
+            "num_layers": qwen_s2layer[size], #config
+            "hidden_size": qwen_s2hidden[size], #config
+            "num_attention_heads": qwen_s2heads[size], #config
             "group_query_attention": True,
             "num_query_groups": qwen_s2kvheads[size],  # config
             "ffn_hidden_size": qwen_s2dense[size],  # config
-            # "parallel_attn": False, #no
+            # "parallel_attn": False, #no 
             # "parallel_layernorm": True,
-            "make_vocab_size_divisible_by": 128,  # no
+            "make_vocab_size_divisible_by": 128, #no
             "swiglu": True,  # hf document
-            "vocab_size": qwen_s2vocab[size],  # config
+            "vocab_size": qwen_s2vocab[size], #config
             "padded_vocab_size": qwen_s2vocab[size],
-            "normalization": 'RMSNorm',  # hf document
-            "untie_embeddings_and_output_weights": False if size in [3, 5, 15] else True,  # config
-            "tokenizer_type": "HuggingFaceTokenizer",  # no
+            "normalization": 'RMSNorm', # hf document
+            "untie_embeddings_and_output_weights": False if size in [3, 5, 15] else True, #config
+            "tokenizer_type": "HuggingFaceTokenizer", #no
             # "tokenizer_type": "Qwen2Tokenizer", #no
-            "max_position_embeddings": 4096,  # config
-            # "seq_length": 32768, #no
-            "norm_epsilon": 1e-6,  # config
-            "rotary_base": 10000,  # config
+            "max_position_embeddings": 4096, #config
+            # "seq_length": 32768, #no 
+            "norm_epsilon": 1e-6, #config
+            "rotary_base": 10000, #config
             "add_bias_linear": False,
             "add_qkv_bias": True,
             # "sliding_window_size": 32768, #config
@@ -647,42 +552,30 @@ def main(
             "hidden_dropout": 0.0,
             "attention_dropout": 0.0,
         }
-        assert (
-            qwen_s2vocab[size] % 128 == 0
-        ), "Determine the vocab_size value in the huggingface config.json and the real vocab size in the tokenizer.json file. If both of them are not divisible by 128, set the make_vocab_size_divisible_by to 1. Your initialized model class should match the checkpoint size."
+        assert qwen_s2vocab[size] % 128 == 0, "Determine the vocab_size value in the huggingface config.json and the real vocab size in the tokenizer.json file. If both of them are not divisible by 128, set the make_vocab_size_divisible_by to 1. Your initialized model class should match the checkpoint size."
     else:  # llama1, llama2, codellama
-        args = {
-            "num_layers": llama_s2layer[size],
-            "hidden_size": llama_s2hidden[size],
-            "num_attention_heads": llama_s2heads[size],
-            "ffn_hidden_size": llama_s2dense[size],
-            "parallel_attn": False,
-            "make_vocab_size_divisible_by": 128,
-            "glu_activation": "swiglu",
-            "padded_vocab_size": 32000,
-            "use_rms_norm": True,
-            "tie_embed_logits": False,
-            "tokenizer_type": "HFTokenizer",
-        }
+        args = {"num_layers": llama_s2layer[size],
+                "hidden_size": llama_s2hidden[size],
+                "num_attention_heads": llama_s2heads[size],
+                "ffn_hidden_size": llama_s2dense[size],
+                "parallel_attn": False,
+                "make_vocab_size_divisible_by": 128,
+                "glu_activation": "swiglu",
+                "padded_vocab_size": 32000,
+                "use_rms_norm": True,
+                "tie_embed_logits": False,
+                "tokenizer_type": "HFTokenizer"}
         if model_name == "llama":
-            args.update(
-                {"max_position_embeddings": 2048, "seq_length": 2048, "layernorm_epsilon": 1e-6}
-            )
+            args.update({"max_position_embeddings": 2048, "seq_length": 2048,
+                         "layernorm_epsilon": 1e-6})
         elif model_name == "llama2":
-            args.update(
-                {"max_position_embeddings": 4096, "seq_length": 4096, "layernorm_epsilon": 1e-5}
-            )
+            args.update({"max_position_embeddings": 4096, "seq_length": 4096,
+                         "layernorm_epsilon": 1e-5})
             if size >= 34:
                 args.update({"num_attention_heads_kv": 8})
         elif model_name == "codellama":
-            args.update(
-                {
-                    "max_position_embeddings": 16384,
-                    "seq_length": 16384,
-                    "layernorm_epsilon": 1e-5,
-                    "rope_theta": 1e6,
-                }
-            )
+            args.update({"max_position_embeddings": 16384, "seq_length": 16384,
+                         "layernorm_epsilon": 1e-5, "rope_theta": 1e6})
             if size >= 34:
                 args.update({"num_attention_heads_kv": 8})
             if size < 34 and not re.match(r"CodeLlama-\d+b-Python", cache_dir):
@@ -690,76 +583,43 @@ def main(
         else:
             sys.exit(f"Model name has to be llama, llama2 or codellama, not {model_name}.")
 
-    args.update(
-        {
-            "tensor_model_parallel_size": 1,
-            "pipeline_model_parallel_size": 1,
-            "iteration": "release",
-            "position_embedding_type": "rope",
-        }
-    )
+
+    args.update({
+        "tensor_model_parallel_size": 1,
+        "pipeline_model_parallel_size": 1,
+        "iteration": "release",
+        "position_embedding_type": "rope"
+    })
 
     # save converted weights in specified out
-    (out / "release" / "mp_rank_00").mkdir(parents=True)
-    with open(out / "latest_checkpointed_iteration.txt", "w+") as f:
+    (out/"release"/"mp_rank_00").mkdir(parents=True)
+    with open(out/"latest_checkpointed_iteration.txt", "w+") as f:
         f.write("release")
-    final_dict = {
-        "iteration": "release",
-        "model": megatron_weights,
-        "checkpoint_version": 3.0,
-        "args": Namespace(**args),
-    }
-    torch.save(final_dict, out / "release" / "mp_rank_00" / "model_optim_rng.pt")
+    final_dict = {"iteration": "release", "model": megatron_weights,
+                  "checkpoint_version": 3.0, "args": Namespace(**args)}
+    torch.save(final_dict, out/"release"/"mp_rank_00"/"model_optim_rng.pt")
     print("Saved weights in", out)
 
     print("Done")
 
 
 if __name__ == "__main__":
-
-    parser = ArgumentParser(
-        description="Convert Huggingface llama or falcon weights to " "megatron-compatible weights"
-    )
-    parser.add_argument(
-        "model",
-        choices={
-            "falcon",
-            "llama",
-            "llama2",
-            "codellama",
-            "mistral",
-            "qwen",
-            "gemma",
-            "qwen_2_5_math",
-        },
-    )
-    parser.add_argument(
-        "--size",
-        default=7,
-        choices={2, 5, 24, 15, 18, 4, 7, 8, 9, 13, 14, 18, 20, 30, 32, 34, 40, 65, 70},
-        type=int,
-        help="The size of the model",
-    )
-    parser.add_argument(
-        "--out", type=Path, help="Directory to store the megatron weights (as checkpoint)"
-    )
-    parser.add_argument(
-        "--model-path", help="Sets model_name_or_path when fetching weights from huggingface"
-    )
-    parser.add_argument(
-        "--cache-dir",
-        type=Path,
-        help=(
-            "Directory to use as cache for the huggingface "
-            "weights, or in case of the llama model, the path "
-            "of the weights privided Meta"
-        ),
-    )
-    parser.add_argument(
-        "--save-random-weights",
-        action="store_true",
-        help="Save random weights for debugging. Be careful with this option.",
-    )
+    
+    parser = ArgumentParser(description="Convert Huggingface llama or falcon weights to "
+                                        "megatron-compatible weights")
+    parser.add_argument("model", choices={"falcon", "llama", "llama2", "codellama", "mistral", "qwen", "gemma", "qwen_2_5_math"})
+    parser.add_argument("--size", default=7, choices={2, 5, 24, 15, 18, 4, 7, 8, 9, 13, 14, 18, 20, 30, 32, 34, 40, 65, 70}, type=int,
+                        help="The size of the model")
+    parser.add_argument("--out", type=Path,
+                        help="Directory to store the megatron weights (as checkpoint)")
+    parser.add_argument("--model-path",
+                        help="Sets model_name_or_path when fetching weights from huggingface")
+    parser.add_argument("--cache-dir", type=Path,
+                        help=("Directory to use as cache for the huggingface "
+                              "weights, or in case of the llama model, the path "
+                              "of the weights privided Meta"))
+    parser.add_argument("--save-random-weights", action="store_true",
+                        help="Save random weights for debugging. Be careful with this option.")
     args = parser.parse_args()
 
     # small arg verification
@@ -772,9 +632,9 @@ if __name__ == "__main__":
     elif args.model == "mistral":
         assert args.size in {7}
     elif args.model == "qwen":
-        assert args.size in {5, 24, 15, 18, 4, 7, 8, 14, 18, 20, 32}
+        assert args.size in {5, 24, 15, 18, 4, 7, 8, 14, 18, 20, 32}  
     elif args.model == "gemma":
-        assert args.size in {2, 7, 9}
+        assert args.size in {2, 7, 9}  
     else:
         assert args.size in {7, 13, 70}
 

@@ -2,15 +2,13 @@
 import datetime
 import json
 
-from flask import Flask, jsonify, request
-from flask_restful import Api, Resource
+from flask import Flask, request, jsonify
+from flask_restful import Resource, Api
 
-from megatron.inference.endpoints.common import LOCK, send_do_beam_search, send_do_generate
+from megatron.inference.text_generation import generate_and_post_process
+from megatron.inference.text_generation import beam_search_and_post_process
+from megatron.inference.endpoints.common import send_do_generate, send_do_beam_search, LOCK
 from megatron.inference.endpoints.completions import MegatronCompletions
-from megatron.inference.text_generation import (
-    beam_search_and_post_process,
-    generate_and_post_process,
-)
 
 
 class MegatronGenerate(Resource):

@@ -1,15 +1,13 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import math
-
-import apex
 import einops
 import torch
+import apex
 import torch.nn.functional as F
-
+from megatron.training import get_args
 from megatron.legacy.model import LayerNorm
 from megatron.legacy.model.module import MegatronModule
 from megatron.legacy.model.vision.utils import resize
-from megatron.training import get_args
 
 
 class SetrSegmentationHead(MegatronModule):
@@ -23,7 +21,8 @@ class SetrSegmentationHead(MegatronModule):
         self.patch_dim = args.patch_dim
 
         self.layernorm = LayerNorm(hidden_size, eps=args.layernorm_epsilon)
-        self.conv_0 = torch.nn.Conv2d(hidden_size, hidden_size, 1, 1, bias=False)
+        self.conv_0 = torch.nn.Conv2d(hidden_size, hidden_size,
+                                      1, 1, bias=False)
         self.norm_0 = apex.parallel.SyncBatchNorm(hidden_size)
         self.conv_1 = torch.nn.Conv2d(hidden_size, num_classes, 1, 1)
 
@@ -31,7 +30,7 @@ class SetrSegmentationHead(MegatronModule):
         n, hw, c = x.shape
         h = self.img_h // self.patch_dim
         w = self.img_w // self.patch_dim
-        assert hw == h * w
+        assert(hw == h * w)
         x = x.transpose(1, 2).reshape(n, c, h, w)
         return x
 
@@ -46,7 +45,9 @@ class SetrSegmentationHead(MegatronModule):
         hidden_states = self.conv_1(hidden_states)
 
         # [b c h w]
-        result = F.interpolate(hidden_states, size=(self.img_h, self.img_w), mode='bilinear')
+        result = F.interpolate(hidden_states,
+                               size=(self.img_h, self.img_w),
+                               mode='bilinear')
 
         return result
 
@@ -55,7 +56,6 @@ class MLP(torch.nn.Module):
     """
     Linear Embedding
     """
-
     def __init__(self, input_dim=2048, embed_dim=768):
         super().__init__()
         self.proj = torch.nn.Linear(input_dim, embed_dim)
@@ -67,7 +67,8 @@ class MLP(torch.nn.Module):
 
 
 class SegformerSegmentationHead(MegatronModule):
-    def __init__(self, feature_strides, in_channels, embedding_dim, dropout_ratio):
+    def __init__(self, feature_strides, in_channels,
+                 embedding_dim, dropout_ratio):
         super(SegformerSegmentationHead, self).__init__()
         assert len(feature_strides) == len(in_channels)
         assert min(feature_strides) == feature_strides[0]
@@ -78,18 +79,26 @@ class SegformerSegmentationHead(MegatronModule):
         self.num_classes = args.num_classes
         self.dropout_ratio = dropout_ratio
 
-        c1_in_channels, c2_in_channels, c3_in_channels, c4_in_channels = self.in_channels
+        c1_in_channels, c2_in_channels, c3_in_channels, c4_in_channels = \
+            self.in_channels
 
-        self.linear_c4 = MLP(input_dim=c4_in_channels, embed_dim=self.embedding_dim)
-        self.linear_c3 = MLP(input_dim=c3_in_channels, embed_dim=self.embedding_dim)
-        self.linear_c2 = MLP(input_dim=c2_in_channels, embed_dim=self.embedding_dim)
-        self.linear_c1 = MLP(input_dim=c1_in_channels, embed_dim=self.embedding_dim)
+        self.linear_c4 = MLP(input_dim=c4_in_channels,
+                             embed_dim=self.embedding_dim)
+        self.linear_c3 = MLP(input_dim=c3_in_channels,
+                             embed_dim=self.embedding_dim)
+        self.linear_c2 = MLP(input_dim=c2_in_channels,
+                             embed_dim=self.embedding_dim)
+        self.linear_c1 = MLP(input_dim=c1_in_channels,
+                             embed_dim=self.embedding_dim)
 
-        self.conv_fuse = torch.nn.Conv2d(self.embedding_dim * 4, self.embedding_dim, 1, 1)
+        self.conv_fuse = torch.nn.Conv2d(self.embedding_dim*4,
+                                         self.embedding_dim, 1, 1)
         self.norm = apex.parallel.SyncBatchNorm(self.embedding_dim)
 
         self.dropout = torch.nn.Dropout2d(self.dropout_ratio)
-        self.linear_pred = torch.nn.Conv2d(self.embedding_dim, self.num_classes, kernel_size=1)
+        self.linear_pred = torch.nn.Conv2d(self.embedding_dim,
+                                           self.num_classes,
+                                           kernel_size=1)
 
     def forward(self, inputs):
         c1, c2, c3, c4 = inputs
@@ -115,3 +124,4 @@ class SegformerSegmentationHead(MegatronModule):
         x = self.linear_pred(x)
 
         return x
+

@@ -2,27 +2,28 @@
 
 """Vision-classification finetuning/evaluation."""
 
-from functools import partial
-
 import numpy as np
 import torch
 import torch.nn.functional as F
-
+from functools import partial
+from megatron.training import get_args, get_timers
+from megatron.training import print_rank_0, print_rank_last
 from megatron.core import mpu
-from megatron.legacy.model.vision.utils import resize
-from megatron.schedules import get_forward_backward_func
-from megatron.training import get_args, get_timers, print_rank_0, print_rank_last
+from tasks.vision.finetune_utils import finetune
+from tasks.vision.finetune_utils import build_data_loader
 from megatron.training.utils import average_losses_across_data_parallel_group
-from tasks.vision.finetune_utils import build_data_loader, finetune
+from megatron.schedules import get_forward_backward_func
 from tasks.vision.segmentation.data import build_train_valid_datasets
 from tasks.vision.segmentation.seg_models import SegformerSegmentationModel
+from megatron.legacy.model.vision.utils import resize
 
 
 def calculate_iou(hist_data):
     acc = np.diag(hist_data).sum() / hist_data.sum()
     acc_cls = np.diag(hist_data) / hist_data.sum(axis=1)
     acc_cls = np.nanmean(acc_cls)
-    divisor = hist_data.sum(axis=1) + hist_data.sum(axis=0) - np.diag(hist_data)
+    divisor = hist_data.sum(axis=1) + hist_data.sum(axis=0) - \
+        np.diag(hist_data)
     iu = np.diag(hist_data) / divisor
     return iu, acc, acc_cls
 
@@ -41,9 +42,8 @@ def fast_hist(pred, gtruth, num_classes):
     # TP exist where value == num_classes*class_id + class_id
     # FP = row[class].sum() - TP
     # FN = col[class].sum() - TP
-    hist = np.bincount(
-        num_classes * gtruth[mask].astype(int) + pred[mask], minlength=num_classes**2
-    )
+    hist = np.bincount(num_classes * gtruth[mask].astype(int) + pred[mask],
+                       minlength=num_classes ** 2)
     hist = hist.reshape(num_classes, num_classes)
     return hist
 
@@ -55,7 +55,9 @@ def segmentation():
         args = get_args()
 
         train_ds, valid_ds = build_train_valid_datasets(
-            data_path=args.data_path, image_size=(args.img_h, args.img_w)
+            data_path=args.data_path,
+            image_size=(args.img_h, args.img_w)
+
         )
         return train_ds, valid_ds
 
@@ -63,9 +65,9 @@ def segmentation():
         """Build the model."""
         args = get_args()
 
-        model = SegformerSegmentationModel(
-            num_classes=args.num_classes, pre_process=pre_process, post_process=post_process
-        )
+        model = SegformerSegmentationModel(num_classes=args.num_classes,
+                                           pre_process=pre_process,
+                                           post_process=post_process)
         print_rank_0("model = {}".format(model))
         return model
 
@@ -77,17 +79,19 @@ def segmentation():
 
     def calculate_weight(masks, num_classes):
         bins = torch.histc(masks, bins=num_classes, min=0.0, max=num_classes)
-        hist_norm = bins.float() / bins.sum()
-        hist = ((bins != 0).float() * (1.0 - hist_norm)) + 1.0
+        hist_norm = bins.float()/bins.sum()
+        hist = ((bins != 0).float() * (1. - hist_norm)) + 1.0
         return hist
 
-    def cross_entropy_loss_func(images, masks, output_tensor, non_loss_data=False):
+    def cross_entropy_loss_func(images, masks, output_tensor,
+                                non_loss_data=False):
         args = get_args()
         ignore_index = args.ignore_index
         color_table = args.color_table
         logits = output_tensor.contiguous().float()
-        logits = resize(logits, size=masks.shape[1:], mode='bilinear', align_corners=False)
-
+        logits = resize(logits, size=masks.shape[1:],
+                        mode='bilinear', align_corners=False)
+      
         # Cross-entropy loss.
         # weight = calculate_weight(masks, num_classes)
         loss = F.cross_entropy(logits, masks, ignore_index=ignore_index)
@@ -109,7 +113,6 @@ def segmentation():
         # Get the batch.
         timers("batch generator", log_level=2).start()
         import types
-
         if isinstance(batch, types.GeneratorType):
             batch_ = next(batch)
         else:
@@ -132,7 +135,8 @@ def segmentation():
         def loss_func(labels, output_tensor):
             args = get_args()
             logits = output_tensor
-            logits = resize(logits, size=labels.shape[1:], mode='bilinear', align_corners=False)
+            logits = resize(logits, size=labels.shape[1:],
+                            mode='bilinear', align_corners=False)
 
             loss_dict = {}
             # Compute the correct answers.
@@ -140,7 +144,9 @@ def segmentation():
             max_probs, preds = torch.max(probs, 1)
 
             preds = preds.cpu().numpy()
-            performs = fast_hist(preds.flatten(), labels.cpu().numpy().flatten(), args.ignore_index)
+            performs = fast_hist(preds.flatten(),
+                                 labels.cpu().numpy().flatten(),
+                                 args.ignore_index)
             loss_dict['performs'] = performs
             return 0, loss_dict
 
@@ -161,14 +167,11 @@ def segmentation():
             # For all the batches in the dataset.
             performs = None
             for _, batch in enumerate(dataloader):
-                loss_dicts = forward_backward_func(
-                    correct_answers_forward_step,
-                    batch,
-                    model,
-                    optimizer=None,
-                    timers=None,
-                    forward_only=True,
-                )
+                loss_dicts = forward_backward_func(correct_answers_forward_step,
+                                                   batch, model,
+                                                   optimizer=None,
+                                                   timers=None,
+                                                   forward_only=True)
                 for loss_dict in loss_dicts:
                     if performs is None:
                         performs = loss_dict['performs']
@@ -180,7 +183,8 @@ def segmentation():
         # Reduce.
         if mpu.is_pipeline_last_stage():
             performs_tensor = torch.cuda.FloatTensor(performs)
-            torch.distributed.all_reduce(performs_tensor, group=mpu.get_data_parallel_group())
+            torch.distributed.all_reduce(performs_tensor,
+                                         group=mpu.get_data_parallel_group())
             hist = performs_tensor.cpu().numpy()
             iu, acc, acc_cls = calculate_iou(hist)
             miou = np.nanmean(iu)
@@ -192,14 +196,15 @@ def segmentation():
         args = get_args()
 
         train_ds, valid_ds = build_train_valid_datasets(
-            data_path=args.data_path, image_size=(args.img_h, args.img_w)
+            data_path=args.data_path,
+            image_size=(args.img_h, args.img_w)
         )
         dataloader = build_data_loader(
             valid_ds,
             args.micro_batch_size,
             num_workers=args.num_workers,
             drop_last=(mpu.get_data_parallel_world_size() > 1),
-            shuffle=False,
+            shuffle=False
         )
 
         def metrics_func(model, epoch):
@@ -207,22 +212,17 @@ def segmentation():
             iou, miou = calculate_correct_answers(model, dataloader, epoch)
             print_rank_last(
                 " >> |epoch: {}| overall: iou = {},"
-                "miou = {:.4f} %".format(epoch, iou, miou * 100.0)
+                "miou = {:.4f} %".format(epoch, iou, miou*100.0)
             )
-
         return metrics_func
 
     def dump_output_data(data, iteration, writer):
-        for output_tb, loss in data:
+        for (output_tb, loss) in data:
             # output_tb[output_tb < 0] = 0
             # output_tb[output_tb > 1] = 1
-            writer.add_images(
-                "image-outputseg-realseg",
-                output_tb,
-                global_step=None,
-                walltime=None,
-                dataformats='NCHW',
-            )
+            writer.add_images("image-outputseg-realseg", output_tb,
+                              global_step=None, walltime=None,
+                              dataformats='NCHW')
 
     """Finetune/evaluate."""
     finetune(
@@ -236,3 +236,4 @@ def segmentation():
 
 def main():
     segmentation()
+

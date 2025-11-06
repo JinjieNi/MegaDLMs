@@ -63,7 +63,9 @@ def load_modelopt_state(load_dir: Optional[str] = None, model: Optional[nn.Modul
             )
             return modelopt_state
         else:
-            print_rank_0("sharded modelopt_state ({}) does not exist!".format(modelopt_state_dir))
+            print_rank_0(
+                "sharded modelopt_state ({}) does not exist!".format(modelopt_state_dir)
+            )
             return {}
     else:
         print_rank_0("Loading modelopt_state from base checkpoint ({})".format(load_dir))
@@ -103,7 +105,7 @@ def load_modelopt_checkpoint(
     """
 
     def _remove_prefix_state_dict_pre_hook(
-        state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs,
     ):
         """Pytorch state_dict pre_hook to remove prefix of the state_dict keys."""
         if additional_sharded_prefix is None:
