@@ -409,3 +409,31 @@ We provide an apple-to-apple speedrun against [Open-dLLM](https://github.com/pen
   howpublished={\url{https://github.com/JinjieNi/MegaDLMs}},
 }
 ```
+
+```bibtex
+@article{ni2025superdatalearner,
+  title={Diffusion Language Models are Super Data Learners},
+  author={Ni, Jinjie and Liu, Qian and Dou, Longxu and Du, Chao and Wang, Zili and Yan, Hang and Pang, Tianyu and Shieh, Michael Qizhe},
+  journal={arXiv preprint arXiv:2511.03276},
+  year={2025}
+}
+```
+
+```bibtex
+@article{ni2025training,
+  title={Training Optimal Large Diffusion Language Models},
+  author={Ni, Jinjie and Liu, Qian and Du, Chao and Dou, Longxu and Yan, Hang and Wang, Zili and Pang, Tianyu and Shieh, Michael Qizhe},
+  journal={arXiv preprint arXiv:2510.03280},
+  year={2025}
+}
+```
+
+```bibtex
+@misc{ni2025openmoe2,
+title={OpenMoE 2: Sparse Diffusion Language Models},
+author={Ni, Jinjie and team},
+year={2025},
+howpublished={\url{https://jinjieni.notion.site/OpenMoE-2-Sparse-Diffusion-Language-Models-277d8f03a8668065a4ecd23f23bd6aac}},
+note={Notion Blog},
+}
+```
